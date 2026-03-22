@@ -1,0 +1,46 @@
+addrmap pdm_to_pcm {
+    name = "PDM to PCM converter address map";
+    desc = "Little-endian";
+
+    default regwidth = 8;
+    default sw = rw;
+    default hw = r;
+    littleendian;
+
+    reg {
+        name = "control";
+        desc = "Control register";
+
+        field {
+            name = "enable";
+            desc = "Enable the PDM to PCM converter";
+        } enable [0:0] = 0x0;
+
+        field {
+            name = "divider";
+            desc = "Divider for the PDM to PCM conversion rate. The actual conversion rate is determined by the formula: PCM_rate = PDM_rate / (divider + 1).";
+
+            enum divider_e {
+                DIV_1 = 2'd0 { desc = "Divide by 1"; };
+                DIV_2 = 2'd1 { desc = "Divide by 2"; };
+                DIV_4 = 2'd2 { desc = "Divide by 4"; };
+                DIV_8 = 2'd3 { desc = "Divide by 8"; };
+            };
+
+            encode = divider_e;
+        } divider [2:1];
+
+    } control @ 0x0;
+
+    reg {
+        name = "data";
+        desc = "Data register";
+
+        field {
+            name = "value";
+            desc = "The PCM output value. This register is read-only and reflects the current PCM output sample generated from the PDM input.";
+        } value [7:0] = 0x0;
+
+    } data @ 0x1;
+
+};
