@@ -18,13 +18,17 @@ addrmap pdm_to_pcm {
 
         field {
             name = "divider";
-            desc = "Divider for the PDM to PCM conversion rate. The actual conversion rate is determined by the formula: PCM_rate = PDM_rate / (divider + 1).";
+            desc = "
+                Divider for the PDM to PCM conversion rate. The actual conversion rate is determined by the formula:
+
+                $$\\text{PCM rate} = \\frac{\\text{PDM rate}}{divider + 1}$$
+                ";
 
             enum divider_e {
-                DIV_1 = 2'd0 { desc = "Divide by 1"; };
-                DIV_2 = 2'd1 { desc = "Divide by 2"; };
-                DIV_4 = 2'd2 { desc = "Divide by 4"; };
-                DIV_8 = 2'd3 { desc = "Divide by 8"; };
+                DIV_x1 = 2'd0 { desc = "Divide by 1"; };
+                DIV_x2 = 2'd1 { desc = "Divide by 2"; };
+                DIV_x4 = 2'd2 { desc = "Divide by 4"; };
+                DIV_x8 = 2'd3 { desc = "Divide by 8"; };
             };
 
             encode = divider_e;
