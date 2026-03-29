@@ -1,4 +1,4 @@
-addrmap pdm_to_pcm {
+addrmap pdm_to_pcm_reg {
     name = "PDM to PCM converter address map";
     desc = "Little-endian";
 
@@ -12,16 +12,11 @@ addrmap pdm_to_pcm {
         desc = "Control register";
 
         field {
-            name = "enable";
-            desc = "Enable the PDM to PCM converter";
-        } enable [0:0] = 0x0;
-
-        field {
             name = "divider";
             desc = "
                 Divider for the PDM to PCM conversion rate. The actual conversion rate is determined by the formula:
 
-                $$\\text{PCM rate} = \\frac{\\text{PDM rate}}{divider + 1}$$
+                $$\\text{PCM rate} = \\frac{\\text{PDM rate}}{\\text{divider} + 1}$$
                 ";
 
             enum divider_e {
@@ -34,7 +29,12 @@ addrmap pdm_to_pcm {
             encode = divider_e;
         } divider [2:1];
 
-    } control @ 0x0;
+        field {
+            name = "enable";
+            desc = "Enable the PDM to PCM converter";
+        } enable [0:0] = 0x0;
+
+    } control;
 
     reg {
         name = "data";
@@ -43,8 +43,24 @@ addrmap pdm_to_pcm {
         field {
             name = "value";
             desc = "The PCM output value. This register is read-only and reflects the current PCM output sample generated from the PDM input.";
+            sw = r;
+            hw = na;
         } value [7:0] = 0x0;
 
-    } data @ 0x1;
+    } data;
+
+    reg
+    {
+        name = "id";
+        desc = "ID register";
+
+        field {
+            name = "ID";
+            desc = "ID field, should read as 0xDA for this device";
+            sw = r;
+            hw = na;
+        } ID [7:0] = 8'hDA;
+
+    } id;
 
 };

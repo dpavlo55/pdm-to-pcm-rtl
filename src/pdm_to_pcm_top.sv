@@ -1,0 +1,92 @@
+import regs_pkg::*;
+
+module pdm_to_pcm_top
+    (
+        input logic clk,
+        input logic rst_n,
+
+        input logic pdm_in,
+
+        // SPI interface
+        input logic spi_sck,
+        input logic spi_mosi,
+        output logic spi_miso,
+        input logic spi_cs_n
+    );
+
+    logic sck_meta, sck;
+    logic mosi_meta, mosi;
+    logic cs_n_meta, cs_n;
+    logic miso;
+
+    logic [7:0] mosi_data;
+    logic mosi_data_valid;
+
+    logic [7:0] miso_data;
+    logic miso_data_valid;
+
+    logic s_cpuif_req;
+    logic s_cpuif_req_is_wr;
+    logic [REGS_MIN_ADDR_WIDTH-1:0] s_cpuif_addr;
+    logic [7:0] s_cpuif_wr_data;
+    logic s_cpuif_rd_ack;
+    logic [7:0] s_cpuif_rd_data;
+    logic s_cpuif_wr_ack;
+    logic s_cpuif_wr_err;
+    pdm_to_pcm_reg__out_t hwif_out;
+
+    assign spi_miso = (cs_n == 1'b0) ? miso : 1'bZ;
+
+    always_ff @(posedge clk) begin
+        sck_meta <= spi_sck;
+        sck <= sck_meta;
+    end
+
+    always_ff @(posedge clk) begin
+        mosi_meta <= spi_mosi;
+        mosi <= mosi_meta;
+    end
+
+    always_ff @(posedge clk) begin
+        cs_n_meta <= spi_cs_n;
+        cs_n <= cs_n_meta;
+    end
+
+    spi spi_inst (
+        .clk   (clk),
+        .rst_n (rst_n),
+
+        // SPI interface
+        .sck   (sck),
+        .mosi  (mosi),
+        .miso  (miso),
+        .cs_n  (cs_n),
+
+        .mosi_data       (mosi_data),
+        .mosi_data_valid (mosi_data_valid),
+
+        .miso_data       (miso_data),
+        .miso_data_valid (miso_data_valid)
+    );
+
+    regs regs_inst (
+        .clk   (clk),
+        .rst_n (rst_n),
+
+        .s_cpuif_req          (s_cpuif_req),
+        .s_cpuif_req_is_wr    (s_cpuif_req_is_wr),
+        .s_cpuif_addr         (s_cpuif_addr),
+        .s_cpuif_wr_data      (s_cpuif_wr_data),
+        .s_cpuif_wr_biten     ('1),
+        .s_cpuif_req_stall_wr (),
+        .s_cpuif_req_stall_rd (),
+        .s_cpuif_rd_ack       (s_cpuif_rd_ack),
+        .s_cpuif_rd_err       (),
+        .s_cpuif_rd_data      (s_cpuif_rd_data),
+        .s_cpuif_wr_ack       (s_cpuif_wr_ack),
+        .s_cpuif_wr_err       (),
+
+        .hwif_out             (hwif_out)
+    );
+
+endmodule : pdm_to_pcm_top
