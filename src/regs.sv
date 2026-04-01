@@ -16,152 +16,84 @@ module regs (
 );
 
     //--------------------------------------------------------------------------
-    // Internal CPUIF signals
-    //--------------------------------------------------------------------------
-    logic cpuif_req;
-    logic cpuif_req_is_wr;
-    logic [1:0] cpuif_addr;
-    logic [7:0] cpuif_wr_data;
-    logic cpuif_rd_ack;
-    logic [7:0] cpuif_rd_data;
-    logic cpuif_wr_ack;
-
-    assign cpuif_req = s_cpuif_req;
-    assign cpuif_req_is_wr = s_cpuif_req_is_wr;
-    assign cpuif_addr = s_cpuif_addr;
-    assign cpuif_wr_data = s_cpuif_wr_data;
-    assign s_cpuif_rd_ack = cpuif_rd_ack;
-    assign s_cpuif_rd_data = cpuif_rd_data;
-    assign s_cpuif_wr_ack = cpuif_wr_ack;
-
-    //--------------------------------------------------------------------------
     // Address decode - write-enable strobes
     //--------------------------------------------------------------------------
     logic wr_strobe_control;
     logic wr_strobe_test_reg;
 
-    always_comb begin
-        wr_strobe_control = cpuif_req & cpuif_req_is_wr & (cpuif_addr == 2'h0);
-        wr_strobe_test_reg = cpuif_req & cpuif_req_is_wr & (cpuif_addr == 2'h3);
-    end
+    assign wr_strobe_control = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 2'h0);
+    assign wr_strobe_test_reg = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 2'h3);
 
     //--------------------------------------------------------------------------
     // Field storage
     //--------------------------------------------------------------------------
-    logic field_control_enable;
-    logic next_control_enable;
-    logic load_control_enable;
+    logic control_enable;
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            field_control_enable <= 1'h0;
-        else if (load_control_enable)
-            field_control_enable <= next_control_enable;
+            control_enable <= 1'h0;
+        else if (wr_strobe_control)
+            control_enable <= s_cpuif_wr_data[0];
 
-    logic [1:0] field_control_divider;
-    logic [1:0] next_control_divider;
-    logic load_control_divider;
+    logic [1:0] control_divider;
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            field_control_divider <= 2'h0;
-        else if (load_control_divider)
-            field_control_divider <= next_control_divider;
+            control_divider <= 2'h0;
+        else if (wr_strobe_control)
+            control_divider <= s_cpuif_wr_data[2:1];
 
-    logic [4:0] field_control_test;
-    logic [4:0] next_control_test;
-    logic load_control_test;
+    logic [4:0] control_test;
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            field_control_test <= 5'h0;
-        else if (load_control_test)
-            field_control_test <= next_control_test;
+            control_test <= 5'h0;
+        else if (wr_strobe_control)
+            control_test <= s_cpuif_wr_data[7:3];
 
-    logic [7:0] field_test_reg_test;
-    logic [7:0] next_test_reg_test;
-    logic load_test_reg_test;
+    logic [7:0] test_reg_test;
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            field_test_reg_test <= 8'h0;
-        else if (load_test_reg_test)
-            field_test_reg_test <= next_test_reg_test;
-
-    //--------------------------------------------------------------------------
-    // Write logic (named signals, no automatic)
-    //--------------------------------------------------------------------------
-    always_comb begin
-        next_control_enable = field_control_enable;
-        load_control_enable = 1'b0;
-        if (wr_strobe_control) begin
-            next_control_enable = cpuif_wr_data[0];
-            load_control_enable = 1'b1;
-        end
-    end
-
-    always_comb begin
-        next_control_divider = field_control_divider;
-        load_control_divider = 1'b0;
-        if (wr_strobe_control) begin
-            next_control_divider = cpuif_wr_data[2:1];
-            load_control_divider = 1'b1;
-        end
-    end
-
-    always_comb begin
-        next_control_test = field_control_test;
-        load_control_test = 1'b0;
-        if (wr_strobe_control) begin
-            next_control_test = cpuif_wr_data[7:3];
-            load_control_test = 1'b1;
-        end
-    end
-
-    always_comb begin
-        next_test_reg_test = field_test_reg_test;
-        load_test_reg_test = 1'b0;
-        if (wr_strobe_test_reg) begin
-            next_test_reg_test = cpuif_wr_data[7:0];
-            load_test_reg_test = 1'b1;
-        end
-    end
+            test_reg_test <= 8'hbb;
+        else if (wr_strobe_test_reg)
+            test_reg_test <= s_cpuif_wr_data[7:0];
 
     //--------------------------------------------------------------------------
     // Read mux
     //--------------------------------------------------------------------------
-    logic [7:0] rd_data_var;
+    logic [7:0] rd_data;
 
     always_comb begin
-        rd_data_var = 8'h0;
-        case (cpuif_addr)
+        rd_data = 8'h0;
+        case (s_cpuif_addr)
             2'h0: begin
-                rd_data_var[0] = field_control_enable;
-                rd_data_var[2:1] = field_control_divider;
-                rd_data_var[7:3] = field_control_test;
+                rd_data[0] = control_enable;
+                rd_data[2:1] = control_divider;
+                rd_data[7:3] = control_test;
             end
             2'h1: begin
-                rd_data_var[7:0] = 8'h0;
+                rd_data[7:0] = 8'h0;
             end
             2'h2: begin
-                rd_data_var[7:0] = 8'hda;
+                rd_data[7:0] = 8'hda;
             end
             2'h3: begin
-                rd_data_var[7:0] = field_test_reg_test;
+                rd_data[7:0] = test_reg_test;
             end
-            default: rd_data_var = {8{1'b0}};
+            default: rd_data = {8{1'b0}};
         endcase
     end
 
     //--------------------------------------------------------------------------
     // Ack / response
     //--------------------------------------------------------------------------
-    assign cpuif_wr_ack  = cpuif_req & cpuif_req_is_wr;
-    assign cpuif_rd_ack  = cpuif_req & ~cpuif_req_is_wr;
-    assign cpuif_rd_data = rd_data_var;
+    assign s_cpuif_wr_ack = s_cpuif_req & s_cpuif_req_is_wr;
+    assign s_cpuif_rd_ack = s_cpuif_req & ~s_cpuif_req_is_wr;
+    assign s_cpuif_rd_data = rd_data;
 
     //--------------------------------------------------------------------------
     // hwif_out assignments
     //--------------------------------------------------------------------------
-    assign hwif_out.control.test = field_control_test;
-    assign hwif_out.control.divider = field_control_divider;
-    assign hwif_out.control.enable = field_control_enable;
-    assign hwif_out.test_reg.test = field_test_reg_test;
+    assign hwif_out.control.test = control_test;
+    assign hwif_out.control.divider = control_divider;
+    assign hwif_out.control.enable = control_enable;
+    assign hwif_out.test_reg.test = test_reg_test;
 
 endmodule : regs

@@ -205,23 +205,23 @@ class TestGenerateSv:
         assert "s_cpuif_wr_ack" in self.sv
 
     def test_field_storage_signals(self):
-        assert "field_control_enable" in self.sv
-        assert "field_control_divider" in self.sv
-        assert "field_control_test" in self.sv
+        assert "control_enable" in self.sv
+        assert "control_divider" in self.sv
+        assert "control_test" in self.sv
 
-    def test_named_next_load_signals(self):
-        assert "next_control_enable" in self.sv
-        assert "load_control_enable" in self.sv
+    def test_no_next_load_signals(self):
+        assert "next_" not in self.sv
+        assert "load_" not in self.sv
 
     def test_read_mux_has_id_constant(self):
         # ID register reset = 0xDA
         assert "8'hda" in self.sv
 
     def test_write_ack_logic(self):
-        assert "cpuif_req & cpuif_req_is_wr" in self.sv
+        assert "s_cpuif_req & s_cpuif_req_is_wr" in self.sv
 
     def test_read_ack_logic(self):
-        assert "cpuif_req & ~cpuif_req_is_wr" in self.sv
+        assert "s_cpuif_req & ~s_cpuif_req_is_wr" in self.sv
 
     def test_hwif_out_assignments(self):
         assert "assign hwif_out.control.test" in self.sv

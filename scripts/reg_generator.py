@@ -183,15 +183,7 @@ def generate_svh(addrmap_name: str, addr_width: int, registers: List[RegisterMod
 
 def _sig(reg: RegisterModel, f: FieldModel) -> str:
     """Flat storage signal name for a field."""
-    return f"field_{reg.name}_{f.name}"
-
-
-def _next_sig(reg: RegisterModel, f: FieldModel) -> str:
-    return f"next_{reg.name}_{f.name}"
-
-
-def _load_sig(reg: RegisterModel, f: FieldModel) -> str:
-    return f"load_{reg.name}_{f.name}"
+    return f"{reg.name}_{f.name}"
 
 
 def _wr_strobe(reg: RegisterModel) -> str:
@@ -230,29 +222,6 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
         "",
     ]
 
-    # --- internal CPUIF wires ---
-    L += [
-        "    //--------------------------------------------------------------------------",
-        "    // Internal CPUIF signals",
-        "    //--------------------------------------------------------------------------",
-        f"    logic cpuif_req;",
-        f"    logic cpuif_req_is_wr;",
-        f"    logic [{addr_width - 1}:0] cpuif_addr;",
-        f"    logic [{data_width - 1}:0] cpuif_wr_data;",
-        f"    logic cpuif_rd_ack;",
-        f"    logic [{data_width - 1}:0] cpuif_rd_data;",
-        f"    logic cpuif_wr_ack;",
-        "",
-        "    assign cpuif_req = s_cpuif_req;",
-        "    assign cpuif_req_is_wr = s_cpuif_req_is_wr;",
-        "    assign cpuif_addr = s_cpuif_addr;",
-        "    assign cpuif_wr_data = s_cpuif_wr_data;",
-        "    assign s_cpuif_rd_ack = cpuif_rd_ack;",
-        "    assign s_cpuif_rd_data = cpuif_rd_data;",
-        "    assign s_cpuif_wr_ack = cpuif_wr_ack;",
-        "",
-    ]
-
     # --- address decode ---
     L += [
         "    //--------------------------------------------------------------------------",
@@ -269,14 +238,12 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
                     f"    logic {_wr_strobe(reg)};"
                 )
         L.append("")
-        L.append("    always_comb begin")
         for reg in registers:
             if any(f.sw_writable for f in reg.fields):
                 L.append(
-                    f"        {_wr_strobe(reg)} = cpuif_req & cpuif_req_is_wr"
-                    f" & (cpuif_addr == {addr_width}'h{reg.address:x});"
+                    f"    assign {_wr_strobe(reg)} = s_cpuif_req & s_cpuif_req_is_wr"
+                    f" & (s_cpuif_addr == {addr_width}'h{reg.address:x});"
                 )
-        L.append("    end")
         L.append("")
 
     # --- field storage ---
@@ -288,52 +255,25 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
     for reg, f in rw_fields:
         reset_val = f"{f.width}'h{f.reset:x}"
         sig = _sig(reg, f)
-        next_s = _next_sig(reg, f)
-        load_s = _load_sig(reg, f)
+        bit_slice = f"[{f.high}:{f.low}]" if f.width > 1 else f"[{f.low}]"
         L.append(f"    {f.sv_type} {sig};")
-        L.append(f"    {f.sv_type} {next_s};")
-        L.append(f"    logic {load_s};")
         L.append(f"    always_ff @(posedge clk or negedge rst_n)")
         L.append(f"        if (!rst_n)")
         L.append(f"            {sig} <= {reset_val};")
-        L.append(f"        else if ({load_s})")
-        L.append(f"            {sig} <= {next_s};")
+        L.append(f"        else if ({_wr_strobe(reg)})")
+        L.append(f"            {sig} <= s_cpuif_wr_data{bit_slice};")
         L.append("")
-
-    # --- write logic ---
-    L += [
-        "    //--------------------------------------------------------------------------",
-        "    // Write logic (named signals, no automatic)",
-        "    //--------------------------------------------------------------------------",
-    ]
-    for reg, f in rw_fields:
-        sig = _sig(reg, f)
-        next_s = _next_sig(reg, f)
-        load_s = _load_sig(reg, f)
-        strobe = _wr_strobe(reg)
-        bit_slice = f"[{f.high}:{f.low}]" if f.width > 1 else f"[{f.low}]"
-        L += [
-            f"    always_comb begin",
-            f"        {next_s} = {sig};",
-            f"        {load_s} = 1'b0;",
-            f"        if ({strobe}) begin",
-            f"            {next_s} = cpuif_wr_data{bit_slice};",
-            f"            {load_s} = 1'b1;",
-            f"        end",
-            f"    end",
-            "",
-        ]
 
     # --- read mux ---
     L += [
         "    //--------------------------------------------------------------------------",
         "    // Read mux",
         "    //--------------------------------------------------------------------------",
-        f"    logic [{data_width - 1}:0] rd_data_var;",
+        f"    logic [{data_width - 1}:0] rd_data;",
         "",
         "    always_comb begin",
-        f"        rd_data_var = {data_width}'h0;",
-        f"        case (cpuif_addr)",
+        f"        rd_data = {data_width}'h0;",
+        f"        case (s_cpuif_addr)",
     ]
     for reg in registers:
         L.append(f"            {addr_width}'h{reg.address:x}: begin")
@@ -342,16 +282,16 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
             for f in reg.fields:
                 if f.sw_writable:
                     bit_slice = f"[{f.high}:{f.low}]" if f.width > 1 else f"[{f.low}]"
-                    L.append(f"                rd_data_var{bit_slice} = {_sig(reg, f)};")
+                    L.append(f"                rd_data{bit_slice} = {_sig(reg, f)};")
         else:
             # RO / constant registers — emit reset value as constant
             # collect fields with non-zero reset
             for f in reg.fields:
                 bit_slice = f"[{f.high}:{f.low}]" if f.width > 1 else f"[{f.low}]"
-                L.append(f"                rd_data_var{bit_slice} = {f.width}'h{f.reset:x};")
+                L.append(f"                rd_data{bit_slice} = {f.width}'h{f.reset:x};")
         L.append("            end")
     L += [
-        "            default: rd_data_var = {" + str(data_width) + "{1'b0}};",
+        "            default: rd_data = {" + str(data_width) + "{1'b0}};",
         "        endcase",
         "    end",
         "",
@@ -362,9 +302,9 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
         "    //--------------------------------------------------------------------------",
         "    // Ack / response",
         "    //--------------------------------------------------------------------------",
-        "    assign cpuif_wr_ack  = cpuif_req & cpuif_req_is_wr;",
-        "    assign cpuif_rd_ack  = cpuif_req & ~cpuif_req_is_wr;",
-        "    assign cpuif_rd_data = rd_data_var;",
+        "    assign s_cpuif_wr_ack = s_cpuif_req & s_cpuif_req_is_wr;",
+        "    assign s_cpuif_rd_ack = s_cpuif_req & ~s_cpuif_req_is_wr;",
+        "    assign s_cpuif_rd_data = rd_data;",
         "",
     ]
 
