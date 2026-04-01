@@ -64,7 +64,7 @@ module regs (
     //--------------------------------------------------------------------------
     // Address Decode
     //--------------------------------------------------------------------------
-    typedef struct {
+    typedef struct packed {
         logic control;
         logic data;
         logic id;
@@ -98,7 +98,7 @@ module regs (
     //--------------------------------------------------------------------------
     // Field logic
     //--------------------------------------------------------------------------
-    typedef struct {
+    typedef struct packed {
         struct {
             struct {
                 logic next;
@@ -116,7 +116,7 @@ module regs (
     } field_combo_t;
     field_combo_t field_combo;
 
-    typedef struct {
+    typedef struct packed {
         struct {
             struct {
                 logic value;
