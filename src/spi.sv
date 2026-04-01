@@ -21,6 +21,7 @@ module spi (
 
     logic [7:0] mosi_reg;
     logic [7:0] miso_reg;
+    logic [7:0] miso_buffer_reg;
 
     logic sck_re;
     logic sck_fe;
@@ -28,7 +29,7 @@ module spi (
     logic sck_cnt_ovf;
     logic sck_cnt_ovf_reg;
 
-    assign miso = miso_reg[0];
+    assign miso = miso_reg[7];
 
     edge_detector sck_edge (
         .clk     (clk),
@@ -59,7 +60,7 @@ module spi (
 
     assign sck_cnt_ovf = (sck_cnt == CNT_MAX) && sck_re;
 
-    always_ff @(posedge clk or negedge rst_n)
+    always_ff @(posedge clk)
         sck_cnt_ovf_reg <= sck_cnt_ovf;
 
     always_ff @(posedge clk or negedge rst_n)
@@ -75,6 +76,28 @@ module spi (
         end
 
     // MISO processing
+
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            miso_buffer_reg <= '0;
+        end else begin
+            if (miso_data_valid) begin
+                miso_buffer_reg <= miso_data;
+            end
+        end
+
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            miso_reg <= '0;
+        end else begin
+            if (sck_fe) begin
+                if (sck_cnt == '0) begin
+                    miso_reg <= miso_buffer_reg;
+                end else begin
+                    miso_reg <= {miso_reg[6:0], 1'b0};
+                end
+            end
+        end
 
 
 endmodule : spi

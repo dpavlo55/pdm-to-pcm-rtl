@@ -13,7 +13,7 @@ module edge_detector
 
     logic sig_d;
 
-    always_ff @(posedge clk or negedge rst_n)
+    always_ff @(posedge clk)
         sig_d <= sig;
 
     if (REG_OUT) begin

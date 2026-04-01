@@ -12,6 +12,13 @@ addrmap pdm_to_pcm_reg {
         desc = "Control register";
 
         field {
+            name = "Field name";
+            desc = "Field description";
+            hw   = r;
+            sw   = rw;
+        } test[7:3] = 0x0;
+
+        field {
             name = "divider";
             desc = "
                 Divider for the PDM to PCM conversion rate. The actual conversion rate is determined by the formula:
@@ -26,8 +33,8 @@ addrmap pdm_to_pcm_reg {
                 DIV_x8 = 2'd3 { desc = "Divide by 8"; };
             };
 
-            encode = divider_e;
-        } divider [2:1];
+            //encode = divider_e;
+        } divider [2:1] = 2'd0;
 
         field {
             name = "enable";

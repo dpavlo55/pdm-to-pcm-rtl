@@ -108,6 +108,10 @@ module regs (
                 logic [1:0] next;
                 logic load_next;
             } divider;
+            struct {
+                logic [4:0] next;
+                logic load_next;
+            } test;
         } control;
     } field_combo_t;
     field_combo_t field_combo;
@@ -120,6 +124,9 @@ module regs (
             struct {
                 logic [1:0] value;
             } divider;
+            struct {
+                logic [4:0] value;
+            } test;
         } control;
     } field_storage_t;
     field_storage_t field_storage;
@@ -161,11 +168,38 @@ module regs (
         field_combo.control.divider.load_next = load_next_c;
     end
     always_ff @(posedge clk) begin
-        if(field_combo.control.divider.load_next) begin
-            field_storage.control.divider.value <= field_combo.control.divider.next;
+        if(~rst_n) begin
+            field_storage.control.divider.value <= 2'h0;
+        end else begin
+            if(field_combo.control.divider.load_next) begin
+                field_storage.control.divider.value <= field_combo.control.divider.next;
+            end
         end
     end
     assign hwif_out.control.divider.value = field_storage.control.divider.value;
+    // Field: pdm_to_pcm_reg.control.test
+    always_comb begin
+        automatic logic [4:0] next_c;
+        automatic logic load_next_c;
+        next_c = field_storage.control.test.value;
+        load_next_c = '0;
+        if(decoded_reg_strb.control && decoded_req_is_wr) begin // SW write
+            next_c = (field_storage.control.test.value & ~decoded_wr_biten[7:3]) | (decoded_wr_data[7:3] & decoded_wr_biten[7:3]);
+            load_next_c = '1;
+        end
+        field_combo.control.test.next = next_c;
+        field_combo.control.test.load_next = load_next_c;
+    end
+    always_ff @(posedge clk) begin
+        if(~rst_n) begin
+            field_storage.control.test.value <= 5'h0;
+        end else begin
+            if(field_combo.control.test.load_next) begin
+                field_storage.control.test.value <= field_combo.control.test.next;
+            end
+        end
+    end
+    assign hwif_out.control.test.value = field_storage.control.test.value;
 
     //--------------------------------------------------------------------------
     // Write response
@@ -190,6 +224,7 @@ module regs (
         if(rd_mux_addr == 2'h0) begin
             readback_data_var[0] = field_storage.control.enable.value;
             readback_data_var[2:1] = field_storage.control.divider.value;
+            readback_data_var[7:3] = field_storage.control.test.value;
         end
         if(rd_mux_addr == 2'h1) begin
             readback_data_var[7:0] = 8'h0;
