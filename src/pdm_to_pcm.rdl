@@ -70,4 +70,18 @@ addrmap pdm_to_pcm_reg {
 
     } id;
 
+    reg {
+        name = "Register name";
+        desc = "Register description";
+
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            sw = rw;
+            hw = r;
+        } test[7:0] = 0x0;
+
+    } test_reg;
+
 };

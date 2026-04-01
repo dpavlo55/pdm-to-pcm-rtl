@@ -1,4 +1,4 @@
-import regs_pkg::*;
+`include "regs_defs.svh"
 
 module tt_um_pdm_to_pcm_top
     (
@@ -13,7 +13,7 @@ module tt_um_pdm_to_pcm_top
         output logic spi_miso,
         input logic spi_cs_n,
 
-        output regs_pkg::pdm_to_pcm_reg__out_t hwif_out
+        output pdm_to_pcm_reg__out_t hwif_out
     );
 
     logic sck_meta, sck;
@@ -29,16 +29,11 @@ module tt_um_pdm_to_pcm_top
 
     logic s_cpuif_req;
     logic s_cpuif_req_is_wr;
-    logic [REGS_MIN_ADDR_WIDTH-1:0] s_cpuif_addr;
+    logic [1:0] s_cpuif_addr;
     logic [7:0] s_cpuif_wr_data;
-    logic [7:0] s_cpuif_wr_biten;
-    logic s_cpuif_req_stall_wr;
-    logic s_cpuif_req_stall_rd;
-    logic s_cpuif_rd_ack;
-    logic s_cpuif_rd_err;
-    logic [7:0] s_cpuif_rd_data;
     logic s_cpuif_wr_ack;
-    logic s_cpuif_wr_err;
+    logic [7:0] s_cpuif_rd_data;
+    logic s_cpuif_rd_ack;
 
     assign spi_miso = (cs_n == 1'b0) ? miso : 1'bZ;
 
@@ -88,34 +83,24 @@ module tt_um_pdm_to_pcm_top
         .cpuif_req_is_wr    (s_cpuif_req_is_wr),
         .cpuif_addr         (s_cpuif_addr),
         .cpuif_wr_data      (s_cpuif_wr_data),
-        .cpuif_wr_biten     (s_cpuif_wr_biten),
-        .cpuif_req_stall_wr (s_cpuif_req_stall_wr),
-        .cpuif_req_stall_rd (s_cpuif_req_stall_rd),
-        .cpuif_rd_ack       (s_cpuif_rd_ack),
-        .cpuif_rd_err       (s_cpuif_rd_err),
-        .cpuif_rd_data      (s_cpuif_rd_data),
         .cpuif_wr_ack       (s_cpuif_wr_ack),
-        .cpuif_wr_err       (s_cpuif_wr_err)
+        .cpuif_rd_data      (s_cpuif_rd_data),
+        .cpuif_rd_ack       (s_cpuif_rd_ack)
     );
 
     regs regs_inst (
         .clk   (clk),
         .rst_n (rst_n),
 
-        .s_cpuif_req          (s_cpuif_req),
-        .s_cpuif_req_is_wr    (s_cpuif_req_is_wr),
-        .s_cpuif_addr         (s_cpuif_addr),
-        .s_cpuif_wr_data      (s_cpuif_wr_data),
-        .s_cpuif_wr_biten     (s_cpuif_wr_biten),
-        .s_cpuif_req_stall_wr (s_cpuif_req_stall_wr),
-        .s_cpuif_req_stall_rd (s_cpuif_req_stall_rd),
-        .s_cpuif_rd_ack       (s_cpuif_rd_ack),
-        .s_cpuif_rd_err       (s_cpuif_rd_err),
-        .s_cpuif_rd_data      (s_cpuif_rd_data),
-        .s_cpuif_wr_ack       (s_cpuif_wr_ack),
-        .s_cpuif_wr_err       (s_cpuif_wr_err),
+        .s_cpuif_req       (s_cpuif_req),
+        .s_cpuif_req_is_wr (s_cpuif_req_is_wr),
+        .s_cpuif_addr      (s_cpuif_addr),
+        .s_cpuif_wr_data   (s_cpuif_wr_data),
+        .s_cpuif_wr_ack    (s_cpuif_wr_ack),
+        .s_cpuif_rd_data   (s_cpuif_rd_data),
+        .s_cpuif_rd_ack    (s_cpuif_rd_ack),
 
-        .hwif_out             (hwif_out)
+        .hwif_out          (hwif_out)
     );
 
 endmodule : tt_um_pdm_to_pcm_top

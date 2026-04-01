@@ -7,25 +7,25 @@ package regs_pkg;
     localparam REGS_MIN_ADDR_WIDTH = 2;
     localparam REGS_SIZE = 'h3;
 
-    typedef struct packed {
+    typedef struct {
         logic value;
     } pdm_to_pcm_reg__control__enable__out_t;
 
-    typedef struct packed {
+    typedef struct {
         logic [1:0] value;
     } pdm_to_pcm_reg__control__divider__out_t;
 
-    typedef struct packed {
+    typedef struct {
         logic [4:0] value;
     } pdm_to_pcm_reg__control__test__out_t;
 
-    typedef struct packed {
+    typedef struct {
         pdm_to_pcm_reg__control__enable__out_t enable;
         pdm_to_pcm_reg__control__divider__out_t divider;
         pdm_to_pcm_reg__control__test__out_t test;
     } pdm_to_pcm_reg__control__out_t;
 
-    typedef struct packed {
+    typedef struct {
         pdm_to_pcm_reg__control__out_t control;
     } pdm_to_pcm_reg__out_t;
 endpackage

@@ -1,5 +1,3 @@
-import regs_pkg::*;
-
 module spi (
     input logic clk,
     input logic rst_n,
