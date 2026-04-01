@@ -78,8 +78,8 @@ module regs (
     logic [7:0] decoded_wr_biten;
 
     always_comb begin
-        automatic logic is_valid_addr;
-        automatic logic is_valid_rw;
+        logic is_valid_addr;
+        logic is_valid_rw;
         is_valid_addr = '1; // No valid address check
         is_valid_rw = '1; // No valid RW check
         decoded_reg_strb.control = cpuif_req_masked & (cpuif_addr == 2'h0);
@@ -99,16 +99,16 @@ module regs (
     // Field logic
     //--------------------------------------------------------------------------
     typedef struct packed {
-        struct {
-            struct {
+        struct packed {
+            struct packed {
                 logic next;
                 logic load_next;
             } enable;
-            struct {
+            struct packed {
                 logic [1:0] next;
                 logic load_next;
             } divider;
-            struct {
+            struct packed {
                 logic [4:0] next;
                 logic load_next;
             } test;
@@ -117,14 +117,14 @@ module regs (
     field_combo_t field_combo;
 
     typedef struct packed {
-        struct {
-            struct {
+        struct packed {
+            struct packed {
                 logic value;
             } enable;
-            struct {
+            struct packed {
                 logic [1:0] value;
             } divider;
-            struct {
+            struct packed {
                 logic [4:0] value;
             } test;
         } control;
@@ -133,8 +133,8 @@ module regs (
 
     // Field: pdm_to_pcm_reg.control.enable
     always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
+        logic [0:0] next_c;
+        logic load_next_c;
         next_c = field_storage.control.enable.value;
         load_next_c = '0;
         if(decoded_reg_strb.control && decoded_req_is_wr) begin // SW write
@@ -156,8 +156,8 @@ module regs (
     assign hwif_out.control.enable.value = field_storage.control.enable.value;
     // Field: pdm_to_pcm_reg.control.divider
     always_comb begin
-        automatic logic [1:0] next_c;
-        automatic logic load_next_c;
+        logic [1:0] next_c;
+        logic load_next_c;
         next_c = field_storage.control.divider.value;
         load_next_c = '0;
         if(decoded_reg_strb.control && decoded_req_is_wr) begin // SW write
@@ -179,8 +179,8 @@ module regs (
     assign hwif_out.control.divider.value = field_storage.control.divider.value;
     // Field: pdm_to_pcm_reg.control.test
     always_comb begin
-        automatic logic [4:0] next_c;
-        automatic logic load_next_c;
+        logic [4:0] next_c;
+        logic load_next_c;
         next_c = field_storage.control.test.value;
         load_next_c = '0;
         if(decoded_reg_strb.control && decoded_req_is_wr) begin // SW write
@@ -219,7 +219,7 @@ module regs (
     logic readback_done;
     logic [7:0] readback_data;
     always_comb begin
-        automatic logic [7:0] readback_data_var;
+        logic [7:0] readback_data_var;
         readback_data_var = '0;
         if(rd_mux_addr == 2'h0) begin
             readback_data_var[0] = field_storage.control.enable.value;

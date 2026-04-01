@@ -1,4 +1,4 @@
-import regs_pkg::REGS_MIN_ADDR_WIDTH;
+//import regs_pkg::*;
 
 module spi_to_regs_adapter (
     input logic clk,
@@ -12,7 +12,7 @@ module spi_to_regs_adapter (
 
     output logic cpuif_req,
     output logic cpuif_req_is_wr,
-    output logic [REGS_MIN_ADDR_WIDTH-1:0] cpuif_addr,
+    output logic [4:0] cpuif_addr,
     output logic [7:0] cpuif_wr_data,
     output logic [7:0] cpuif_wr_biten,
     input logic cpuif_req_stall_wr,
