@@ -1,6 +1,6 @@
 `include "regs_defs.svh"
 
-module tt_um_pdm_to_pcm_top
+module pdm_to_pcm_top
     (
         input logic clk,
         input logic rst_n,
@@ -16,11 +16,6 @@ module tt_um_pdm_to_pcm_top
         output pdm_to_pcm_reg__out_t hwif_out
     );
 
-    logic sck_meta, sck;
-    logic mosi_meta, mosi;
-    logic cs_n_meta, cs_n;
-    logic miso;
-
     logic [7:0] mosi_data;
     logic mosi_data_valid;
 
@@ -35,32 +30,15 @@ module tt_um_pdm_to_pcm_top
     logic [7:0] s_cpuif_rd_data;
     logic s_cpuif_rd_ack;
 
-    assign spi_miso = (cs_n == 1'b0) ? miso : 1'bZ;
-
-    always_ff @(posedge clk) begin
-        sck_meta <= spi_sck;
-        sck <= sck_meta;
-    end
-
-    always_ff @(posedge clk) begin
-        mosi_meta <= spi_mosi;
-        mosi <= mosi_meta;
-    end
-
-    always_ff @(posedge clk) begin
-        cs_n_meta <= spi_cs_n;
-        cs_n <= cs_n_meta;
-    end
-
     spi spi_inst (
         .clk   (clk),
         .rst_n (rst_n),
 
         // SPI interface
-        .sck   (sck),
-        .mosi  (mosi),
-        .miso  (miso),
-        .cs_n  (cs_n),
+        .sck   (spi_sck),
+        .mosi  (spi_mosi),
+        .miso  (spi_miso),
+        .cs_n  (spi_cs_n),
 
         .mosi_data       (mosi_data),
         .mosi_data_valid (mosi_data_valid),
@@ -103,4 +81,4 @@ module tt_um_pdm_to_pcm_top
         .hwif_out          (hwif_out)
     );
 
-endmodule : tt_um_pdm_to_pcm_top
+endmodule : pdm_to_pcm_top
