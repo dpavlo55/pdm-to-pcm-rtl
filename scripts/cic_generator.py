@@ -122,7 +122,7 @@ def generate_sv(params: CicParams) -> str:
         else:
             prev_width = integ_stages[i - 1].width
             if prev_width > st.width:
-                addend = f"integ_{i - 1}[{st.width - 1}:0]"
+                addend = f"integ_{i - 1}[{prev_width - 1}:{prev_width - st.width}]"
             else:
                 addend = f"integ_{i - 1}"
         L += [
@@ -187,11 +187,15 @@ def generate_sv(params: CicParams) -> str:
                 if i == 0:
                     # Feed from last integrator; truncate if narrower
                     if last_integ_w > st.width:
-                        feed = f"integ_{N - 1}[{st.width - 1}:0]"
+                        feed = f"integ_{N - 1}[{last_integ_w - 1}:{last_integ_w - st.width}]"
                     else:
                         feed = f"integ_{N - 1}"
                 else:
-                    feed = f"comb_{i - 1}_diff"
+                    prev_comb_w = comb_stages[i - 1].width
+                    if prev_comb_w > st.width:
+                        feed = f"comb_{i - 1}_diff[{prev_comb_w - 1}:{prev_comb_w - st.width}]"
+                    else:
+                        feed = f"comb_{i - 1}_diff"
             else:
                 feed = f"comb_{i}_dly_{m - 1}"
             L += [
@@ -208,8 +212,12 @@ def generate_sv(params: CicParams) -> str:
         """Signal feeding into comb stage i (before the delay subtraction)."""
         if i == 0:
             if last_integ_w > comb_stages[0].width:
-                return f"integ_{N - 1}[{comb_stages[0].width - 1}:0]"
+                return f"integ_{N - 1}[{last_integ_w - 1}:{last_integ_w - comb_stages[0].width}]"
             return f"integ_{N - 1}"
+        prev_comb_w = comb_stages[i - 1].width
+        curr_comb_w = comb_stages[i].width
+        if prev_comb_w > curr_comb_w:
+            return f"comb_{i - 1}_diff[{prev_comb_w - 1}:{prev_comb_w - curr_comb_w}]"
         return f"comb_{i - 1}_diff"
 
     L += [

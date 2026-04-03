@@ -6,6 +6,7 @@ module pdm_to_pcm_top
         input logic rst_n,
 
         input logic pdm_in,
+        input logic pdm_in_valid,
 
         // SPI interface
         input logic spi_sck,
@@ -79,6 +80,17 @@ module pdm_to_pcm_top
         .s_cpuif_rd_ack    (s_cpuif_rd_ack),
 
         .hwif_out          (hwif_out)
+    );
+
+    cic #(
+        .PIPELINE_ENABLE (1'b1)
+    ) cic_inst (
+        .clk (clk),
+        .rst_n (rst_n),
+        .sig_in (pdm_in),
+        .sig_in_valid (pdm_in_valid),
+        .sig_out (),  // not connected to anything in this top-level module
+        .sig_out_valid ()
     );
 
 endmodule : pdm_to_pcm_top
