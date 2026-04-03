@@ -126,7 +126,7 @@ module cic
         if (!rst_n)
             sig_out <= 8'h0;
         else if (dec_en)
-            sig_out <= comb_2_diff[18:11];
+            sig_out <= comb_2_diff[9:2];
 
     //--------------------------------------------------------------------------
     // Valid — single-cycle pulse when sig_out is updated

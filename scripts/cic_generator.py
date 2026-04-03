@@ -252,7 +252,7 @@ def generate_sv(params: CicParams) -> str:
         f"        if (!rst_n)",
         f"            sig_out <= {Bout}'h0;",
         f"        else if (dec_en)",
-        f"            sig_out <= {last_comb}[{max_width - 1}:{trunc_bits}];",
+        f"            sig_out <= {last_comb}[{last_comb_w - 1}:{last_comb_w - Bout}];",
         "",
         "    //--------------------------------------------------------------------------",
         "    // Valid — single-cycle pulse when sig_out is updated",
