@@ -5,7 +5,8 @@ module pdm_to_pcm_top
         input logic clk,
         input logic rst_n,
 
-        input logic pdm_in,
+        input logic pdm_in_0,
+        input logic pdm_in_1,
 
         // SPI interface
         input logic spi_sck,
@@ -13,7 +14,7 @@ module pdm_to_pcm_top
         output logic spi_miso,
         input logic spi_cs_n,
 
-        output pdm_to_pcm_reg__out_t hwif_out
+        output logic [7:0] pcm_out
     );
 
     logic [7:0] mosi_data;
@@ -29,6 +30,12 @@ module pdm_to_pcm_top
     logic s_cpuif_wr_ack;
     logic [7:0] s_cpuif_rd_data;
     logic s_cpuif_rd_ack;
+    pdm_to_pcm_reg__out_t hwif_out;
+
+    logic [7:0] pcm_out_0;
+    logic [7:0] pcm_out_1;
+
+    assign pcm_out = pcm_out_0 ^ pcm_out_1;
 
     spi spi_inst (
         .clk   (clk),
@@ -79,6 +86,28 @@ module pdm_to_pcm_top
         .s_cpuif_rd_ack    (s_cpuif_rd_ack),
 
         .hwif_out          (hwif_out)
+    );
+
+    cic cic_inst_0 (
+        .clk     (clk),
+        .rst_n   (rst_n),
+
+        .sig_in  (pdm_in_0),
+        .sig_in_valid (1'b1),
+
+        .sig_out (pcm_out_0),
+        .sig_out_valid ()
+    );
+
+    cic cic_inst_1 (
+        .clk     (clk),
+        .rst_n   (rst_n),
+
+        .sig_in  (pdm_in_1),
+        .sig_in_valid (1'b1),
+
+        .sig_out (pcm_out_1),
+        .sig_out_valid ()
     );
 
 endmodule : pdm_to_pcm_top

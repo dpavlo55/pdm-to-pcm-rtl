@@ -23,7 +23,7 @@ module cic
     //--------------------------------------------------------------------------
     logic signed [18:0] integ_0;  // stage 1, width=19
     logic signed [18:0] integ_1;  // stage 2, width=19
-    logic signed [13:0] integ_2;  // stage 3, width=14
+    logic signed [18:0] integ_2;  // stage 3, width=19
 
     // Sign-extend sig_in to first integrator width (19 bits)
     logic signed [18:0] sig_in_se;
@@ -45,7 +45,7 @@ module cic
         if (!rst_n)
             integ_2 <= 14'h0;
         else if (sig_in_valid)
-            integ_2 <= integ_2 + integ_1[13:0];
+            integ_2 <= integ_2 + integ_1;
 
     //--------------------------------------------------------------------------
     // Decimation counter — fires every R valid input samples
@@ -68,52 +68,52 @@ module cic
     //    PIPELINE_ENABLE=0: combinational differences, only delays registered
     //    PIPELINE_ENABLE=1: all differences registered (lower fmax pressure)
     //--------------------------------------------------------------------------
-    logic signed [11:0] comb_0_dly_0;  // comb stage 4, delay tap 0
-    logic signed [11:0] comb_0_diff;  // comb stage 4 difference output
-    logic signed [10:0] comb_1_dly_0;  // comb stage 5, delay tap 0
-    logic signed [10:0] comb_1_diff;  // comb stage 5 difference output
-    logic signed [9:0] comb_2_dly_0;  // comb stage 6, delay tap 0
-    logic signed [9:0] comb_2_diff;  // comb stage 6 difference output
+    logic signed [18:0] comb_0_dly_0;  // comb stage 4, delay tap 0
+    logic signed [18:0] comb_0_diff;  // comb stage 4 difference output
+    logic signed [18:0] comb_1_dly_0;  // comb stage 5, delay tap 0
+    logic signed [18:0] comb_1_diff;  // comb stage 5 difference output
+    logic signed [18:0] comb_2_dly_0;  // comb stage 6, delay tap 0
+    logic signed [18:0] comb_2_diff;  // comb stage 6 difference output
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            comb_0_dly_0 <= 12'h0;
+            comb_0_dly_0 <= 19'h0;
         else if (dec_en)
-            comb_0_dly_0 <= integ_2[11:0];
+            comb_0_dly_0 <= integ_2;
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            comb_1_dly_0 <= 11'h0;
+            comb_1_dly_0 <= 19'h0;
         else if (dec_en)
             comb_1_dly_0 <= comb_0_diff;
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            comb_2_dly_0 <= 10'h0;
+            comb_2_dly_0 <= 19'h0;
         else if (dec_en)
             comb_2_dly_0 <= comb_1_diff;
 
     generate
         if (PIPELINE_ENABLE == 1'b0) begin : g_comb
             // Combinational comb differences
-            always_comb comb_0_diff = integ_2[11:0] - comb_0_dly_0;
+            always_comb comb_0_diff = integ_2 - comb_0_dly_0;
             always_comb comb_1_diff = comb_0_diff - comb_1_dly_0;
             always_comb comb_2_diff = comb_1_diff - comb_2_dly_0;
         end else begin : g_pipe
             // Registered comb differences (PIPELINE_ENABLE=1)
             always_ff @(posedge clk or negedge rst_n)
                 if (!rst_n)
-                    comb_0_diff <= 12'h0;
+                    comb_0_diff <= 19'h0;
                 else if (dec_en)
-                    comb_0_diff <= integ_2[11:0] - comb_0_dly_0;
+                    comb_0_diff <= integ_2 - comb_0_dly_0;
             always_ff @(posedge clk or negedge rst_n)
                 if (!rst_n)
-                    comb_1_diff <= 11'h0;
+                    comb_1_diff <= 19'h0;
                 else if (dec_en)
                     comb_1_diff <= comb_0_diff - comb_1_dly_0;
             always_ff @(posedge clk or negedge rst_n)
                 if (!rst_n)
-                    comb_2_diff <= 10'h0;
+                    comb_2_diff <= 19'h0;
                 else if (dec_en)
                     comb_2_diff <= comb_1_diff - comb_2_dly_0;
         end

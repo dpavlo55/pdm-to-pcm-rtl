@@ -14,17 +14,20 @@ module tt_um_top
     logic spi_mosi, mosi_meta, mosi;
     logic spi_cs_n, cs_n_meta, cs_n;
     logic spi_miso, miso;
-    logic pdm_in;
+    logic pdm_in_0, pdm_in_1;
+
+    logic [7:0] pcm_out;
 
     assign spi_sck = ui_in[0];
     assign spi_mosi = ui_in[1];
     assign spi_cs_n = ui_in[2];
-    assign pdm_in = ui_in[3];
+    assign pdm_in_0 = ui_in[3];
+    assign pdm_in_1 = ui_in[4];
 
     assign uo_out[0] = spi_miso;
     assign uo_out[7:1] = 7'b0;
 
-    assign uio_out = 8'b0;
+    assign uio_out = pcm_out;
     assign uio_oe  = 8'b0;
 
 
@@ -48,11 +51,14 @@ module tt_um_top
     pdm_to_pcm_top pdm_to_pcm_top_inst (
         .clk       (clk),
         .rst_n     (rst_n),
-        .pdm_in    (pdm_in),
+        .pdm_in_0  (pdm_in_0),
+        .pdm_in_1  (pdm_in_1),
         .spi_sck   (sck),
         .spi_mosi  (mosi),
         .spi_miso  (miso),
-        .spi_cs_n  (cs_n)
+        .spi_cs_n  (cs_n),
+        .pcm_out   (pcm_out)
+
     );
 
 endmodule : tt_um_top
