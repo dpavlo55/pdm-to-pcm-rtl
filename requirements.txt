@@ -1,3 +1,5 @@
 peakrdl
 systemrdl-compiler
 pytest
+matplotlib
+numpy
