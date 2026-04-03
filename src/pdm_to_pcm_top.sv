@@ -83,7 +83,7 @@ module pdm_to_pcm_top
     );
 
     cic #(
-        .PIPELINE_ENABLE (1'b1)
+        .PIPELINE_ENABLE (1'b0)
     ) cic_inst (
         .clk (clk),
         .rst_n (rst_n),

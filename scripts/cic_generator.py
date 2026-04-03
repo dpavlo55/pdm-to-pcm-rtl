@@ -108,11 +108,13 @@ def generate_sv(params: CicParams) -> str:
         L.append(f"    logic signed {_w(st.width)} integ_{i};  // stage {st.index}, width={st.width}")
     L.append("")
 
-    # Sign-extend sig_in to the first integrator width once
+    # Bipolar PDM mapping: sig_in=1 -> +1, sig_in=0 -> -1
     L += [
-        f"    // Sign-extend sig_in to first integrator width ({integ0_w} bits)",
+        f"    // PDM bipolar mapping: sig_in=1 -> +1, sig_in=0 -> -1",
+        f"    localparam logic signed {_w(integ0_w)} PDM_ONE  = {integ0_w}'sd1;",
+        f"    localparam logic signed {_w(integ0_w)} PDM_MONE = -{integ0_w}'sd1;",
         f"    logic signed {_w(integ0_w)} sig_in_se;",
-        f"    assign sig_in_se = {integ0_w}'(signed'(sig_in));",
+        f"    assign sig_in_se = sig_in ? PDM_ONE : PDM_MONE;",
         "",
     ]
 
