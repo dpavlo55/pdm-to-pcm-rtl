@@ -3,13 +3,13 @@ pdm_generator.py — Generate a first-order sigma-delta PDM bit-stream for a
 sine-wave stimulus and write each sample (0 or 1) on its own line.
 
 Usage:
-  python pdm_generator.py [--freq 10000] [--fs 2000000] [--num-samples 20000]
+  python pdm_generator.py [--freq 10000] [--fs 2000000] [--duration 0.01]
                           [--amp 0.9] [--outdir ../../sim]
 
 Arguments:
   --freq        Sine signal frequency in Hz          (default: 10 000)
   --fs          PDM clock / sample rate in Hz        (default: 2 000 000)
-  --num-samples Number of PDM samples to emit        (default: 20 000)
+  --duration    Signal duration in seconds           (default: 10ms = 0.01)
   --amp         Normalised sine amplitude  [0, 1)    (default: 0.9)
   --outdir      Output directory                     (default: ../../sim)
   --outfile     Override the auto-generated filename (default: auto)
@@ -39,6 +39,8 @@ def generate_pdm(freq: float, fs: float, num_samples: int, amp: float) -> list[i
         raise ValueError(f"amp must be in the open interval (0, 1), got {amp}")
     if freq >= fs / 2:
         raise ValueError(f"freq {freq} Hz must be below Nyquist ({fs / 2} Hz)")
+    if num_samples <= 0:
+        raise ValueError(f"num_samples must be > 0, got {num_samples}")
 
     pdm: list[int] = []
     err = 0.0
@@ -74,18 +76,20 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Generate a PDM bit-stream for a sine stimulus (first-order sigma-delta)."
     )
-    parser.add_argument("--freq",        type=float, default=10_000,   help="Sine frequency in Hz (default: 10000)")
-    parser.add_argument("--fs",          type=float, default=2_000_000, help="PDM sample rate in Hz (default: 2000000)")
-    parser.add_argument("--num-samples", type=int,   default=20_000,   help="Number of PDM samples (default: 20000)")
-    parser.add_argument("--amp",         type=float, default=0.9,      help="Normalised amplitude 0<amp<1 (default: 0.9)")
-    parser.add_argument("--outdir",      default=default_outdir,       help="Output directory (default: ../../sim)")
-    parser.add_argument("--outfile",     default=None,                 help="Override output filename")
+    parser.add_argument("--freq",     type=float, default=10_000,    help="Sine frequency in Hz (default: 10000)")
+    parser.add_argument("--fs",       type=float, default=2_000_000, help="PDM sample rate in Hz (default: 2000000)")
+    parser.add_argument("--duration", type=float, default=10e-3,     help="Signal duration in seconds (default: 10ms)")
+    parser.add_argument("--amp",      type=float, default=0.9,       help="Normalised amplitude 0<amp<1 (default: 0.9)")
+    parser.add_argument("--outdir",   default=default_outdir,        help="Output directory (default: ../../sim)")
+    parser.add_argument("--outfile",  default=None,                  help="Override output filename")
     args = parser.parse_args(argv)
+
+    num_samples = max(1, round(args.duration * args.fs))
 
     pdm_bits = generate_pdm(
         freq=args.freq,
         fs=args.fs,
-        num_samples=args.num_samples,
+        num_samples=num_samples,
         amp=args.amp,
     )
 
@@ -99,6 +103,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Written {len(pdm_bits)} PDM samples -> {out_path}")
     print(f"  sine freq   : {args.freq / 1e3:.3f} kHz")
     print(f"  sample rate : {args.fs / 1e6:.3f} MHz")
+    print(f"  duration    : {args.duration * 1e3:.3f} ms  ({num_samples} samples)")
     print(f"  amplitude   : {args.amp}")
     ones = sum(pdm_bits)
     print(f"  duty cycle  : {100.0 * ones / len(pdm_bits):.1f}%  ({ones}/{len(pdm_bits)} ones)")
