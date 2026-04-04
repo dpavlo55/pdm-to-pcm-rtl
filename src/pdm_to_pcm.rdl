@@ -83,11 +83,11 @@ addrmap pdm_to_pcm_reg {
     };
 
     nco_control control_low;
-    control_low->buffer_writes = true;
-    control_low->wbuffer_trigger = control_low;
+    //control_low->buffer_writes = true;
+    //control_low->wbuffer_trigger = control_low;
 
     nco_control control_high;
-    control_high->buffer_writes = true;
-    control_high->wbuffer_trigger = control_low;
+    //control_high->buffer_writes = true;
+    //control_high->wbuffer_trigger = control_low;
 
 };

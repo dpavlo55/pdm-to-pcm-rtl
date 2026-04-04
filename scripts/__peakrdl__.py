@@ -39,11 +39,31 @@ from reg_generator import (  # noqa: E402
     generate_svh,
     write_file,
     _sig,
-    _num_words,
-    _word_strobe,
-    _field_word_idx,
-    _field_local_slice,
 )
+
+
+# ---------------------------------------------------------------------------
+# Low-level SV helpers (not in the restored reg_generator.py)
+# ---------------------------------------------------------------------------
+
+def _num_words(reg: RegisterModel, data_width: int) -> int:
+    return max(1, reg.data_width // data_width)
+
+
+def _word_strobe(reg: RegisterModel, word_idx: int, data_width: int) -> str:
+    if _num_words(reg, data_width) == 1:
+        return f"wr_strobe_{reg.name}"
+    return f"wr_strobe_{reg.name}_w{word_idx}"
+
+
+def _field_word_idx(f: FieldModel, data_width: int) -> int:
+    return f.low // data_width
+
+
+def _field_local_slice(f: FieldModel, data_width: int) -> str:
+    local_low = f.low % data_width
+    local_high = local_low + f.width - 1
+    return f"[{local_low}]" if f.width == 1 else f"[{local_high}:{local_low}]"
 
 
 # ---------------------------------------------------------------------------

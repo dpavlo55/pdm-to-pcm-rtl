@@ -1,6 +1,10 @@
 `ifndef PDM_TO_PCM_REG_DEFS_SVH
 `define PDM_TO_PCM_REG_DEFS_SVH
 
+localparam REGS_DATA_WIDTH    = 8;
+localparam REGS_MIN_ADDR_WIDTH = 3;
+localparam REGS_SIZE           = 'h5;
+
 typedef struct packed { logic [4:0] test; logic [1:0] divider; logic enable; } pdm_to_pcm_reg__control__out_t;
 typedef struct packed { logic [7:0] value; } pdm_to_pcm_reg__control_low__out_t;
 typedef struct packed { logic [7:0] value; } pdm_to_pcm_reg__control_high__out_t;

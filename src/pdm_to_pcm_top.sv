@@ -25,7 +25,7 @@ module pdm_to_pcm_top
 
     logic s_cpuif_req;
     logic s_cpuif_req_is_wr;
-    logic [1:0] s_cpuif_addr;
+    logic [2:0] s_cpuif_addr;
     logic [7:0] s_cpuif_wr_data;
     logic s_cpuif_wr_ack;
     logic [7:0] s_cpuif_rd_data;
@@ -80,6 +80,18 @@ module pdm_to_pcm_top
         .s_cpuif_rd_ack    (s_cpuif_rd_ack),
 
         .hwif_out          (hwif_out)
+    );
+
+    logic [15:0] step;
+    assign step = {hwif_out.control_high.value, hwif_out.control_low.value};
+
+    pdm_clk_gen pdm_clk_gen_inst (
+        .clk   (clk),
+        .rst_n (rst_n),
+        .enable (hwif_out.control.enable),
+        .step (step),
+        .pdm_clk (),
+        .pdm_valid ()
     );
 
     cic #(

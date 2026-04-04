@@ -27,24 +27,6 @@ module regs (
     assign wr_strobe_control_high = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h4);
 
     //--------------------------------------------------------------------------
-    // Write buffers
-    //--------------------------------------------------------------------------
-    logic wbuf_control_high_pending;
-    logic [7:0] wbuf_control_high_w0_data;
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            wbuf_control_high_pending <= 1'b0;
-            wbuf_control_high_w0_data <= 8'h0;
-        end else begin
-            if (wr_strobe_control_low)
-                wbuf_control_high_pending <= 1'b0;
-            if (wr_strobe_control_high) begin
-                wbuf_control_high_w0_data <= s_cpuif_wr_data[7:0];
-                wbuf_control_high_pending <= 1'b1;
-            end
-        end
-
-    //--------------------------------------------------------------------------
     // Field storage
     //--------------------------------------------------------------------------
     logic control_enable;
@@ -79,8 +61,8 @@ module regs (
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
             control_high_value <= 8'h0;
-        else if (wbuf_control_high_pending && wr_strobe_control_low)
-            control_high_value <= wbuf_control_high_w0_data[7:0];
+        else if (wr_strobe_control_high)
+            control_high_value <= s_cpuif_wr_data[7:0];
 
     //--------------------------------------------------------------------------
     // Read mux

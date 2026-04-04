@@ -1,9 +1,10 @@
 module pdm_clk_gen #(
     parameter int N = 16
 ) (
-    input  logic clk,
-    input  logic rst_n,
-    input  logic [N-1:0] step,
+    input logic clk,
+    input logic rst_n,
+    input logic enable,
+    input logic [N-1:0] step,
     output logic pdm_clk,
     output logic pdm_valid
 );
@@ -14,7 +15,7 @@ module pdm_clk_gen #(
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
             {carry, acc} <= '0;
-        else
+        else if (enable)
             {carry, acc} <= acc + step;
 
     always_ff @(posedge clk or negedge rst_n)
