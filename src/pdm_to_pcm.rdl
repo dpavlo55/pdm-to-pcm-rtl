@@ -70,18 +70,24 @@ addrmap pdm_to_pcm_reg {
 
     } id;
 
-    reg {
+    reg nco_control {
         name = "Register name";
         desc = "Register description";
-
 
         field {
             name = "Field name";
             desc = "Field description";
-            sw = rw;
-            hw = r;
-        } test[7:0] = 0xBB;
+            sw   = rw;
+            hw   = r;
+        } value[7:0] = 0x0;
+    };
 
-    } test_reg;
+    nco_control control_low;
+    control_low->buffer_writes = true;
+    control_low->wbuffer_trigger = control_low;
+
+    nco_control control_high;
+    control_high->buffer_writes = true;
+    control_high->wbuffer_trigger = control_low;
 
 };

@@ -6,7 +6,7 @@ module regs (
 
     input  logic s_cpuif_req,
     input  logic s_cpuif_req_is_wr,
-    input  logic [1:0] s_cpuif_addr,
+    input  logic [2:0] s_cpuif_addr,
     input  logic [7:0] s_cpuif_wr_data,
     output logic s_cpuif_rd_ack,
     output logic [7:0] s_cpuif_rd_data,
@@ -19,10 +19,30 @@ module regs (
     // Address decode - write-enable strobes
     //--------------------------------------------------------------------------
     logic wr_strobe_control;
-    logic wr_strobe_test_reg;
+    logic wr_strobe_control_low;
+    logic wr_strobe_control_high;
 
-    assign wr_strobe_control = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 2'h0);
-    assign wr_strobe_test_reg = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 2'h3);
+    assign wr_strobe_control = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h0);
+    assign wr_strobe_control_low = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h3);
+    assign wr_strobe_control_high = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h4);
+
+    //--------------------------------------------------------------------------
+    // Write buffers
+    //--------------------------------------------------------------------------
+    logic wbuf_control_high_pending;
+    logic [7:0] wbuf_control_high_w0_data;
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            wbuf_control_high_pending <= 1'b0;
+            wbuf_control_high_w0_data <= 8'h0;
+        end else begin
+            if (wr_strobe_control_low)
+                wbuf_control_high_pending <= 1'b0;
+            if (wr_strobe_control_high) begin
+                wbuf_control_high_w0_data <= s_cpuif_wr_data[7:0];
+                wbuf_control_high_pending <= 1'b1;
+            end
+        end
 
     //--------------------------------------------------------------------------
     // Field storage
@@ -48,12 +68,19 @@ module regs (
         else if (wr_strobe_control)
             control_test <= s_cpuif_wr_data[7:3];
 
-    logic [7:0] test_reg_test;
+    logic [7:0] control_low_value;
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            test_reg_test <= 8'hbb;
-        else if (wr_strobe_test_reg)
-            test_reg_test <= s_cpuif_wr_data[7:0];
+            control_low_value <= 8'h0;
+        else if (wr_strobe_control_low)
+            control_low_value <= s_cpuif_wr_data[7:0];
+
+    logic [7:0] control_high_value;
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n)
+            control_high_value <= 8'h0;
+        else if (wbuf_control_high_pending && wr_strobe_control_low)
+            control_high_value <= wbuf_control_high_w0_data[7:0];
 
     //--------------------------------------------------------------------------
     // Read mux
@@ -63,19 +90,22 @@ module regs (
     always_comb begin
         rd_data = 8'h0;
         case (s_cpuif_addr)
-            2'h0: begin
+            3'h0: begin
                 rd_data[0] = control_enable;
                 rd_data[2:1] = control_divider;
                 rd_data[7:3] = control_test;
             end
-            2'h1: begin
+            3'h1: begin
                 rd_data[7:0] = 8'h0;
             end
-            2'h2: begin
+            3'h2: begin
                 rd_data[7:0] = 8'hda;
             end
-            2'h3: begin
-                rd_data[7:0] = test_reg_test;
+            3'h3: begin
+                rd_data[7:0] = control_low_value;
+            end
+            3'h4: begin
+                rd_data[7:0] = control_high_value;
             end
             default: rd_data = {8{1'b0}};
         endcase
@@ -94,6 +124,7 @@ module regs (
     assign hwif_out.control.test = control_test;
     assign hwif_out.control.divider = control_divider;
     assign hwif_out.control.enable = control_enable;
-    assign hwif_out.test_reg.test = test_reg_test;
+    assign hwif_out.control_low.value = control_low_value;
+    assign hwif_out.control_high.value = control_high_value;
 
 endmodule : regs
