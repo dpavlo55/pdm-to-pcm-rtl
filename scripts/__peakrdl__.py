@@ -372,3 +372,20 @@ class RegblockTtExporter(ExporterSubcommandPlugin):
         addrmap_name, addr_width, registers, buf_info = _build_model(top_node)
         write_file(outdir / "regs_defs.svh", generate_svh(addrmap_name, addr_width, registers))
         write_file(outdir / "regs.sv", _generate_sv(addrmap_name, addr_width, registers, buf_info))
+
+from peakrdl_uvm.exporter import UVMExporter
+
+class UvmTtExporter(ExporterSubcommandPlugin):
+    short_desc = 'Generate UVM with TT HDLs'
+    def add_exporter_arguments(self, arg_group) -> None:
+        arg_group.add_argument('--type-style', default='hier')
+    
+    def do_export(self, top_node, options) -> None:
+        x = UVMExporter(user_template_dir='rtl/scripts/uvm_templates')
+        x.export(
+            top_node, options.output,
+            export_as_package=True,
+            reuse_class_definitions=(options.type_style=='lexical'),
+            use_uvm_factory=False
+        )
+

@@ -3,3 +3,4 @@ python_search_paths = ["."]
 
 [peakrdl.plugins.exporters]
 regblock-tt = "__peakrdl__:RegblockTtExporter"
+uvm-tt = "__peakrdl__:UvmTtExporter"
