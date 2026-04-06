@@ -5,8 +5,8 @@ module pdm_to_pcm_top
         input logic clk,
         input logic rst_n,
 
-        input logic pdm_in,
-        input logic pdm_in_valid,
+        output logic pdm_clk,
+        input logic pdm_data,
 
         // SPI interface
         input logic spi_sck,
@@ -86,27 +86,59 @@ module pdm_to_pcm_top
     );
 
     logic [15:0] step;
+    logic pdm_clk_re;
+    logic pdm_clk_fe;
+    logic [0:0] pdm_data_left;
+    logic pdm_data_left_valid;
+    logic [0:0] pdm_data_right;
+    logic pdm_data_right_valid;
+    logic [7:0] cic_data_left;
+    logic cic_data_left_valid;
+    logic [7:0] cic_data_right;
+    logic cic_data_right_valid;
+
     //assign step = {hwif_out.control_high.value, hwif_out.control_low.value};
     assign step = {hwif_out.nco_control.high, hwif_out.nco_control.low};
 
+
     pdm_clk_gen pdm_clk_gen_inst (
-        .clk   (clk),
-        .rst_n (rst_n),
-        .enable (hwif_out.control.enable),
-        .step (step),
-        .pdm_clk (),
-        .pdm_valid ()
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .enable     (hwif_out.control.enable),
+        .step       (step),
+        .pdm_clk    (pdm_clk),
+        .pdm_clk_re (pdm_clk_re),
+        .pdm_clk_fe (pdm_clk_fe)
     );
 
-    cic #(
-        .PIPELINE_ENABLE (1'b0)
-    ) cic_inst (
-        .clk (clk),
-        .rst_n (rst_n),
-        .sig_in (pdm_in),
-        .sig_in_valid (pdm_in_valid),
-        .sig_out (cic_out),  // not connected to anything in this top-level module
-        .sig_out_valid (cic_out_valid)  // not connected to anything in this top-level module
+    pdm_sampler pdm_sampler_inst (
+        .clk                  (clk),
+        .rst_n                (rst_n),
+        .pdm_clk_re           (pdm_clk_re),
+        .pdm_clk_fe           (pdm_clk_fe),
+        .pdm_data             (pdm_data),
+        .pdm_data_left        (pdm_data_left),
+        .pdm_data_left_valid  (pdm_data_left_valid),
+        .pdm_data_right       (pdm_data_right),
+        .pdm_data_right_valid (pdm_data_right_valid)
+    );
+
+    cic cic_left_inst (
+        .clk           (clk),
+        .rst_n         (rst_n),
+        .sig_in        (pdm_data_left),
+        .sig_in_valid  (pdm_data_left_valid),
+        .sig_out       (cic_data_left),
+        .sig_out_valid (cic_data_left_valid)
+    );
+
+    cic cic_right_inst (
+        .clk           (clk),
+        .rst_n         (rst_n),
+        .sig_in        (pdm_data_right),
+        .sig_in_valid  (pdm_data_right_valid),
+        .sig_out       (cic_data_right),
+        .sig_out_valid (cic_data_right_valid)
     );
 
 endmodule : pdm_to_pcm_top
