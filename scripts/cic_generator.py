@@ -111,10 +111,12 @@ def generate_sv(params: CicParams) -> str:
     # Bipolar PDM mapping: sig_in=1 -> +1, sig_in=0 -> -1
     L += [
         f"    // PDM bipolar mapping: sig_in=1 -> +1, sig_in=0 -> -1",
-        f"    localparam logic signed {_w(integ0_w)} PDM_ONE  = {integ0_w}'sd1;",
-        f"    localparam logic signed {_w(integ0_w)} PDM_MONE = -{integ0_w}'sd1;",
+        f"    localparam logic signed {_w(integ0_w)} PDM_PLUS_ONE = {integ0_w}'sd1;",
+        f"    localparam logic signed {_w(integ0_w)} PDM_MINUS_ONE = -{integ0_w}'sd1;",
+        "",
         f"    logic signed {_w(integ0_w)} sig_in_se;",
-        f"    assign sig_in_se = sig_in ? PDM_ONE : PDM_MONE;",
+        "",
+        f"    assign sig_in_se = sig_in ? PDM_PLUS_ONE : PDM_MINUS_ONE;",
         "",
     ]
 

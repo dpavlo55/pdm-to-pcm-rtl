@@ -185,7 +185,7 @@ def calculate_cic_pruning(N: int, R: int, M: int, Bin: int, Bout: int, passband:
         print(f"    Aliasing band attenuation = {alias_db:.2f} dB\n")
 
 
-def plot_frequency_response(params: CicParams) -> None:
+def plot_frequency_response(params: CicParams, fs: float | None = None, comp: bool = False) -> None:
     """Plot the CIC filter magnitude response (requires matplotlib and numpy)."""
     try:
         import matplotlib.pyplot as plt
@@ -197,25 +197,39 @@ def plot_frequency_response(params: CicParams) -> None:
         ) from exc
 
     N, R, M = params.N, params.R, params.M
+    fs_scale = fs if fs is not None else 1.0
 
     # Frequency axis: normalized to input sample rate (0 to 0.5)
     # Small offset avoids sin(0)/0 at DC
-    f = np.linspace(1e-6, 0.5, 8000)
+    f_norm = np.linspace(1e-6, 0.5, 8000)
+    f_plot = f_norm * fs_scale
 
     # CIC magnitude: |sin(π·f·R·M) / sin(π·f)|^N, normalized by DC gain (R·M)^N
-    H_mag = (np.abs(np.sin(np.pi * f * R * M) / np.sin(np.pi * f))) ** N
+    H_mag = (np.abs(np.sin(np.pi * f_norm * R * M) / np.sin(np.pi * f_norm))) ** N
     H_db = 20 * np.log10(np.maximum(H_mag / (R * M) ** N, 1e-10))
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(f, H_db, linewidth=1.5, label='CIC response')
+    ax.plot(f_plot, H_db, linewidth=1.5, label='CIC response')
+
+    if comp:
+        # CFIR runs at output rate, so its normalized frequency is f_norm * R
+        # Transfer function: H_comp(z) = -0.0625 + 1.125*z^-1 - 0.0625*z^-2
+        # Amplitude response is |1.125 - 0.125 * cos(2*pi*f_norm*R)|
+        H_comp_mag = np.abs(1.125 - 0.125 * np.cos(2 * np.pi * f_norm * R))
+        H_comp_db = 20 * np.log10(np.maximum(H_comp_mag, 1e-10))
+        H_total_db = H_db + H_comp_db
+
+        ax.plot(f_plot, H_comp_db, linewidth=1.5, linestyle='--', color='orange', label='CFIR response')
+        ax.plot(f_plot, H_total_db, linewidth=1.5, color='purple', label='Total (CIC + CFIR)')
 
     # Output Nyquist: highest frequency preserved after decimation
-    f_out_nyq = 0.5 / R
+    f_out_nyq = (0.5 / R) * fs_scale
+    nyq_label = f'Output Nyquist (fs/{2 * R})' if fs is not None else f'Output Nyquist (1/{2 * R} · fs_in)'
     ax.axvline(f_out_nyq, color='g', linestyle='--',
-               label=f'Output Nyquist (1/{2 * R} · fs_in)')
+               label=nyq_label)
 
     # Nulls at f = k / (R·M)
-    null_freqs = [k / (R * M) for k in range(1, R * M + 1) if k / (R * M) <= 0.5]
+    null_freqs = [k / (R * M) * fs_scale for k in range(1, R * M + 1) if k / (R * M) <= 0.5]
     for i, fn in enumerate(null_freqs):
         ax.axvline(fn, color='r', linestyle=':', alpha=0.6,
                    label='Nulls (k/(R·M))' if i == 0 else '_')
@@ -224,9 +238,10 @@ def plot_frequency_response(params: CicParams) -> None:
         f'CIC Filter Frequency Response — '
         f'N={N}, R={R}, M={M}, Bin={params.Bin}, Bout={params.Bout}'
     )
-    ax.set_xlabel('Normalized frequency (× input sample rate)')
+    xlabel = 'Frequency (Hz)' if fs is not None else 'Normalized frequency (× input sample rate)'
+    ax.set_xlabel(xlabel)
     ax.set_ylabel('Magnitude (dB)')
-    ax.set_xlim(0, 0.5)
+    ax.set_xlim(0, 0.5 * fs_scale)
     ax.set_ylim(bottom=max(float(H_db.min()) - 5, -120))
     ax.legend()
     ax.grid(True, alpha=0.3)
@@ -258,11 +273,15 @@ def main(argv: list[str] | None = None) -> None:
                         metavar="BW",
                         help="Useful bandwidth as a fraction of output Nyquist (0 < BW <= 1). "
                              "Prints passband droop and aliasing band attenuation.")
+    parser.add_argument("--fs", type=float, default=None,
+                        help="Input sampling frequency in Hz (used to scale the plot X-axis up to fs/2)")
+    parser.add_argument("--comp", action="store_true", default=False,
+                        help="Plot the compensation filter and total response (when --plot is used)")
     args = parser.parse_args(argv)
     calculate_cic_pruning(N=args.N, R=args.R, M=args.M, Bin=args.Bin, Bout=args.Bout, passband=args.passband)
     if args.plot:
         params = compute_cic_params(N=args.N, R=args.R, M=args.M, Bin=args.Bin, Bout=args.Bout)
-        plot_frequency_response(params)
+        plot_frequency_response(params, fs=args.fs, comp=args.comp)
 
 
 if __name__ == "__main__":

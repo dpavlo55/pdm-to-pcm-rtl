@@ -3,6 +3,7 @@ addrmap pdm_to_pcm_reg {
     desc = "Little-endian";
 
     default regwidth = 8;
+    default accesswidth = 8;
     default sw = rw;
     default hw = r;
     littleendian;
@@ -89,5 +90,26 @@ addrmap pdm_to_pcm_reg {
     nco_control control_high;
     //control_high->buffer_writes = true;
     //control_high->wbuffer_trigger = control_low;
+
+    reg {
+        name = "Register name";
+        desc = "Register description";
+
+        regwidth = 16;
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            sw   = rw;
+            hw   = r;
+        } high[15:8] = 0x0;
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            sw   = rw;
+            hw   = r;
+        } low[7:0] = 0x0;
+    } nco_control;
 
 };

@@ -21,10 +21,14 @@ module regs (
     logic wr_strobe_control;
     logic wr_strobe_control_low;
     logic wr_strobe_control_high;
+    logic wr_strobe_nco_control_w0;
+    logic wr_strobe_nco_control_w1;
 
     assign wr_strobe_control = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h0);
     assign wr_strobe_control_low = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h3);
     assign wr_strobe_control_high = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h4);
+    assign wr_strobe_nco_control_w0 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h6);
+    assign wr_strobe_nco_control_w1 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h7);
 
     //--------------------------------------------------------------------------
     // Field storage
@@ -64,6 +68,20 @@ module regs (
         else if (wr_strobe_control_high)
             control_high_value <= s_cpuif_wr_data[7:0];
 
+    logic [7:0] nco_control_low;
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n)
+            nco_control_low <= 8'h0;
+        else if (wr_strobe_nco_control_w0)
+            nco_control_low <= s_cpuif_wr_data[7:0];
+
+    logic [7:0] nco_control_high;
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n)
+            nco_control_high <= 8'h0;
+        else if (wr_strobe_nco_control_w1)
+            nco_control_high <= s_cpuif_wr_data[7:0];
+
     //--------------------------------------------------------------------------
     // Read mux
     //--------------------------------------------------------------------------
@@ -89,6 +107,12 @@ module regs (
             3'h4: begin
                 rd_data[7:0] = control_high_value;
             end
+            3'h6: begin
+                rd_data[7:0] = nco_control_low;
+            end
+            3'h7: begin
+                rd_data[7:0] = nco_control_high;
+            end
             default: rd_data = {8{1'b0}};
         endcase
     end
@@ -108,5 +132,7 @@ module regs (
     assign hwif_out.control.enable = control_enable;
     assign hwif_out.control_low.value = control_low_value;
     assign hwif_out.control_high.value = control_high_value;
+    assign hwif_out.nco_control.high = nco_control_high;
+    assign hwif_out.nco_control.low = nco_control_low;
 
 endmodule : regs

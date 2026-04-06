@@ -31,6 +31,9 @@ module pdm_to_pcm_top
     logic [7:0] s_cpuif_rd_data;
     logic s_cpuif_rd_ack;
 
+    logic signed [7:0] cic_out;
+    logic cic_out_valid;
+
     spi spi_inst (
         .clk   (clk),
         .rst_n (rst_n),
@@ -83,7 +86,8 @@ module pdm_to_pcm_top
     );
 
     logic [15:0] step;
-    assign step = {hwif_out.control_high.value, hwif_out.control_low.value};
+    //assign step = {hwif_out.control_high.value, hwif_out.control_low.value};
+    assign step = {hwif_out.nco_control.high, hwif_out.nco_control.low};
 
     pdm_clk_gen pdm_clk_gen_inst (
         .clk   (clk),
@@ -101,8 +105,8 @@ module pdm_to_pcm_top
         .rst_n (rst_n),
         .sig_in (pdm_in),
         .sig_in_valid (pdm_in_valid),
-        .sig_out (),  // not connected to anything in this top-level module
-        .sig_out_valid ()
+        .sig_out (cic_out),  // not connected to anything in this top-level module
+        .sig_out_valid (cic_out_valid)  // not connected to anything in this top-level module
     );
 
 endmodule : pdm_to_pcm_top
