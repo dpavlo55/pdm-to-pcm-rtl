@@ -12,9 +12,7 @@ module pdm_to_pcm_top
         input logic spi_sck,
         input logic spi_mosi,
         output logic spi_miso,
-        input logic spi_cs_n,
-
-        output pdm_to_pcm_reg__out_t hwif_out
+        input logic spi_cs_n
     );
 
     logic [7:0] mosi_data;
@@ -31,9 +29,6 @@ module pdm_to_pcm_top
     logic [7:0] s_cpuif_rd_data;
     logic s_cpuif_rd_ack;
 
-    logic signed [7:0] cic_out;
-    logic cic_out_valid;
-
     logic [15:0] step;
     logic pdm_clk_re;
     logic pdm_clk_fe;
@@ -46,6 +41,7 @@ module pdm_to_pcm_top
     logic [7:0] cic_data_right;
     logic cic_data_right_valid;
 
+    pdm_to_pcm_reg__out_t hwif_out;
     pdm_to_pcm_reg__in_t hwif_in;
 
     spi spi_inst (
