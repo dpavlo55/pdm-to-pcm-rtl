@@ -13,83 +13,11 @@ addrmap pdm_to_pcm_reg {
         desc = "Control register";
 
         field {
-            name = "Field name";
-            desc = "Field description";
-            hw   = r;
-            sw   = rw;
-        } test[7:3] = 0x0;
-
-        field {
-            name = "divider";
-            desc = "
-                Divider for the PDM to PCM conversion rate. The actual conversion rate is determined by the formula:
-
-                $$\\text{PCM rate} = \\frac{\\text{PDM rate}}{\\text{divider} + 1}$$
-                ";
-
-            enum divider_e {
-                DIV_x1 = 2'd0 { desc = "Divide by 1"; };
-                DIV_x2 = 2'd1 { desc = "Divide by 2"; };
-                DIV_x4 = 2'd2 { desc = "Divide by 4"; };
-                DIV_x8 = 2'd3 { desc = "Divide by 8"; };
-            };
-
-            //encode = divider_e;
-        } divider [2:1] = 2'd0;
-
-        field {
             name = "enable";
             desc = "Enable the PDM to PCM converter";
         } enable [0:0] = 0x0;
 
     } control;
-
-    reg {
-        name = "data";
-        desc = "Data register";
-
-        field {
-            name = "value";
-            desc = "The PCM output value. This register is read-only and reflects the current PCM output sample generated from the PDM input.";
-            sw = r;
-            hw = na;
-        } value [7:0] = 0x0;
-
-    } data;
-
-    reg
-    {
-        name = "id";
-        desc = "ID register";
-
-        field {
-            name = "ID";
-            desc = "ID field, should read as 0xDA for this device";
-            sw = r;
-            hw = na;
-        } ID [7:0] = 8'hDA;
-
-    } id;
-
-    reg nco_control {
-        name = "Register name";
-        desc = "Register description";
-
-        field {
-            name = "Field name";
-            desc = "Field description";
-            sw   = rw;
-            hw   = r;
-        } value[7:0] = 0x0;
-    };
-
-    nco_control control_low;
-    //control_low->buffer_writes = true;
-    //control_low->wbuffer_trigger = control_low;
-
-    nco_control control_high;
-    //control_high->buffer_writes = true;
-    //control_high->wbuffer_trigger = control_low;
 
     reg {
         name = "Register name";
@@ -111,5 +39,44 @@ addrmap pdm_to_pcm_reg {
             hw   = r;
         } low[7:0] = 0x0;
     } nco_control;
+
+    reg {
+        name = "Register name";
+        desc = "Register description";
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            hw = w;
+            sw = r;
+        } value[7:0] = 0x0;
+
+    } data_right;
+
+    reg {
+        name = "Register name";
+        desc = "Register description";
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            hw = w;
+            sw = r;
+        } value[7:0] = 0x0;
+
+    } data_left;
+
+    reg {
+        name = "id";
+        desc = "ID register";
+
+        field {
+            name = "value";
+            desc = "ID field, should read as 0xDA for this device";
+            sw = r;
+            hw = na;
+        } value [7:0] = 8'hDA;
+
+    } id;
 
 };

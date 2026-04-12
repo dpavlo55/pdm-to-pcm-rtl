@@ -8,42 +8,188 @@ Outputs (written to the directory given by -o):
   regs_defs.svh  — packed struct typedefs + localparams
   regs.sv        — register module with simplified passthrough CPUIF
 
-reg_generator.py is imported unchanged for its data model types and
-generator functions; only the elaboration step is performed here (the
-AddrmapNode is supplied by the PeakRDL framework).
+Self-contained: all data model types and generator functions are defined
+here. The elaboration step receives an AddrmapNode from the PeakRDL framework.
 """
 
 from __future__ import annotations
 
 import math
-import sys
-import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, TYPE_CHECKING
 
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
+from systemrdl.rdltypes import AccessType
 
 if TYPE_CHECKING:
     import argparse
     from systemrdl.node import AddrmapNode
 
-# reg_generator.py lives next to this file; ensure it can be imported even
-# when this module is imported before python_search_paths is applied.
-_here = os.path.dirname(os.path.abspath(__file__))
-if _here not in sys.path:
-    sys.path.insert(0, _here)
 
-from reg_generator import (  # noqa: E402
-    FieldModel,
-    RegisterModel,
-    generate_svh,
-    write_file,
-    _sig,
-)
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
+
+@dataclass
+class FieldModel:
+    name: str
+    high: int       # MSB bit index in the register
+    low: int        # LSB bit index in the register
+    sw: AccessType
+    hw: AccessType
+    reset: int
+
+    @property
+    def width(self) -> int:
+        return self.high - self.low + 1
+
+    @property
+    def hw_accessible(self) -> bool:
+        """Field is driven out to hwif_out (hw reads the value)."""
+        return self.hw in (AccessType.r, AccessType.rw)
+
+    @property
+    def hw_writable(self) -> bool:
+        """Field is driven in from hwif_in (hw writes the value)."""
+        return self.hw in (AccessType.w, AccessType.rw)
+
+    @property
+    def sw_writable(self) -> bool:
+        return self.sw in (AccessType.rw, AccessType.w)
+
+    @property
+    def sv_type(self) -> str:
+        if self.width == 1:
+            return "logic"
+        return f"logic [{self.width - 1}:0]"
+
+
+@dataclass
+class RegisterModel:
+    name: str
+    address: int
+    data_width: int
+    fields: List[FieldModel] = field(default_factory=list)
+
+    @property
+    def hw_fields(self) -> List[FieldModel]:
+        """Fields exposed on hwif_out (HW reads), ordered MSB-first."""
+        return sorted(
+            [f for f in self.fields if f.hw_accessible],
+            key=lambda f: f.high,
+            reverse=True,
+        )
+
+    @property
+    def has_hw_fields(self) -> bool:
+        return bool(self.hw_fields)
+
+    @property
+    def hw_in_fields(self) -> List[FieldModel]:
+        """Fields driven from hwif_in (HW writes, SW reads), ordered MSB-first."""
+        return sorted(
+            [f for f in self.fields if f.hw_writable],
+            key=lambda f: f.high,
+            reverse=True,
+        )
+
+    @property
+    def has_hw_in_fields(self) -> bool:
+        return bool(self.hw_in_fields)
 
 
 # ---------------------------------------------------------------------------
-# Low-level SV helpers (not in the restored reg_generator.py)
+# regs_defs.svh generator
+# ---------------------------------------------------------------------------
+
+def _svh_guard_name(addrmap_name: str) -> str:
+    return f"{addrmap_name.upper()}_DEFS_SVH"
+
+
+def generate_svh(addrmap_name: str, addr_width: int, registers: List[RegisterModel]) -> str:
+    """Return the full text of regs_defs.svh."""
+    data_width = registers[0].data_width if registers else 8
+    guard = _svh_guard_name(addrmap_name)
+    num_regs = len(registers)
+
+    lines: List[str] = []
+    lines += [
+        f"`ifndef {guard}",
+        f"`define {guard}",
+        "",
+        f"localparam REGS_DATA_WIDTH    = {data_width};",
+        f"localparam REGS_MIN_ADDR_WIDTH = {addr_width};",
+        f"localparam REGS_SIZE           = 'h{num_regs:x};",
+        "",
+    ]
+
+    # Per-register packed struct for hwif_out (HW reads, SW writes)
+    hw_regs = [r for r in registers if r.has_hw_fields]
+    for reg in hw_regs:
+        struct_name = f"{addrmap_name}__{reg.name}__out_t"
+        field_decls = "; ".join(
+            f"{f.sv_type} {f.name}" for f in reg.hw_fields
+        )
+        lines.append(f"typedef struct packed {{ {field_decls}; }} {struct_name};")
+
+    lines.append("")
+
+    # Top-level output struct
+    top_struct_name = f"{addrmap_name}__out_t"
+    lines.append(f"typedef struct packed {{")
+    for reg in hw_regs:
+        member_type = f"{addrmap_name}__{reg.name}__out_t"
+        lines.append(f"    {member_type} {reg.name};")
+    lines.append(f"}} {top_struct_name};")
+
+    # Per-register packed struct for hwif_in (HW writes, SW reads)
+    hw_in_regs = [r for r in registers if r.has_hw_in_fields]
+    if hw_in_regs:
+        lines.append("")
+        for reg in hw_in_regs:
+            struct_name = f"{addrmap_name}__{reg.name}__in_t"
+            field_decls = "; ".join(
+                f"{f.sv_type} {f.name}" for f in reg.hw_in_fields
+            )
+            lines.append(f"typedef struct packed {{ {field_decls}; }} {struct_name};")
+
+        lines.append("")
+
+        # Top-level input struct
+        top_in_struct_name = f"{addrmap_name}__in_t"
+        lines.append(f"typedef struct packed {{")
+        for reg in hw_in_regs:
+            member_type = f"{addrmap_name}__{reg.name}__in_t"
+            lines.append(f"    {member_type} {reg.name};")
+        lines.append(f"}} {top_in_struct_name};")
+
+    lines += [
+        "",
+        f"`endif // {guard}",
+        "",
+    ]
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# File writing
+# ---------------------------------------------------------------------------
+
+def write_file(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print(f"Written: {path}")
+
+
+def _sig(reg: RegisterModel, f: FieldModel) -> str:
+    """Flat storage signal name for a field."""
+    return f"{reg.name}_{f.name}"
+
+
+# ---------------------------------------------------------------------------
+# Low-level SV helpers
 # ---------------------------------------------------------------------------
 
 def _num_words(reg: RegisterModel, data_width: int) -> int:
@@ -123,13 +269,19 @@ def _generate_sv(
     data_width = registers[0].data_width if registers else 8
     top_struct = f"{addrmap_name}__out_t"
     hw_regs = [r for r in registers if r.has_hw_fields]
+    hw_in_regs = [r for r in registers if r.has_hw_in_fields]
     rw_fields: List[tuple] = [
         (r, f) for r in registers for f in r.fields if f.sw_writable
     ]
+    top_in_struct = f"{addrmap_name}__in_t"
 
     L: List[str] = []
 
     # --- header ---
+    hwif_in_port = (
+        [f"    input  {top_in_struct} hwif_in,", f""]
+        if hw_in_regs else []
+    )
     L += [
         '`include "regs_defs.svh"',
         "",
@@ -145,6 +297,7 @@ def _generate_sv(
         f"    output logic [{data_width - 1}:0] s_cpuif_rd_data,",
         f"    output logic s_cpuif_wr_ack,",
         f"",
+        *hwif_in_port,
         f"    output {top_struct} hwif_out",
         f");",
         "",
@@ -275,7 +428,10 @@ def _generate_sv(
             else:
                 for f in word_fields:
                     local_slice = _field_local_slice(f, data_width)
-                    L.append(f"                rd_data{local_slice} = {f.width}'h{f.reset:x};")
+                    if f.hw_writable:
+                        L.append(f"                rd_data{local_slice} = hwif_in.{reg.name}.{f.name};")
+                    else:
+                        L.append(f"                rd_data{local_slice} = {f.width}'h{f.reset:x};")
             L.append("            end")
     L += [
         "            default: rd_data = {" + str(data_width) + "{1'b0}};",
@@ -379,7 +535,7 @@ class UvmTtExporter(ExporterSubcommandPlugin):
     short_desc = 'Generate UVM with TT HDLs'
     def add_exporter_arguments(self, arg_group) -> None:
         arg_group.add_argument('--type-style', default='hier')
-    
+
     def do_export(self, top_node, options) -> None:
         x = UVMExporter(user_template_dir='rtl/scripts/uvm_templates')
         x.export(

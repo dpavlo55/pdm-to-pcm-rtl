@@ -28,37 +28,33 @@ class TestParseRdl:
         assert self.addrmap_name == "pdm_to_pcm_reg"
 
     def test_addr_width(self):
-        assert self.addr_width == 2
+        assert self.addr_width == 3
 
     def test_num_registers(self):
-        assert len(self.registers) == 4
+        assert len(self.registers) == 5
 
     def test_register_names(self):
         names = [r.name for r in self.registers]
-        assert names == ["control", "data", "id", "test_reg"]
+        assert names == ["control", "nco_control", "data_right", "data_left", "id"]
 
     def test_register_addresses(self):
         addrs = [r.address for r in self.registers]
-        assert addrs == [0x0, 0x1, 0x2, 0x3]
+        assert addrs == [0x0, 0x2, 0x4, 0x5, 0x6]
 
     def test_control_fields(self):
         control = self.registers[0]
         field_names = [f.name for f in control.fields]
-        assert set(field_names) == {"enable", "divider", "test"}
+        assert set(field_names) == {"enable"}
 
     def test_control_field_widths(self):
         control = self.registers[0]
         widths = {f.name: f.width for f in control.fields}
         assert widths["enable"] == 1
-        assert widths["divider"] == 2
-        assert widths["test"] == 5
 
     def test_control_field_bit_positions(self):
         control = self.registers[0]
         bits = {f.name: (f.high, f.low) for f in control.fields}
         assert bits["enable"] == (0, 0)
-        assert bits["divider"] == (2, 1)
-        assert bits["test"] == (7, 3)
 
     def test_control_sw_writable(self):
         from systemrdl.rdltypes import AccessType
@@ -66,27 +62,43 @@ class TestParseRdl:
         for f in control.fields:
             assert f.sw == AccessType.rw
 
-    def test_data_field_hw_na(self):
-        from systemrdl.rdltypes import AccessType
-        data_reg = self.registers[1]
-        assert len(data_reg.fields) == 1
-        assert data_reg.fields[0].hw == AccessType.na
-
     def test_id_field_reset(self):
-        id_reg = self.registers[2]
+        id_reg = self.registers[4]
         assert id_reg.fields[0].reset == 0xDA
 
     def test_hw_accessible_fields(self):
         control = self.registers[0]
         assert all(f.hw_accessible for f in control.fields)
-        data_reg = self.registers[1]
-        assert not any(f.hw_accessible for f in data_reg.fields)
+        data_right = self.registers[2]
+        assert not any(f.hw_accessible for f in data_right.fields)
 
     def test_sw_writable_fields(self):
         control = self.registers[0]
         assert all(f.sw_writable for f in control.fields)
-        data_reg = self.registers[1]
-        assert not any(f.sw_writable for f in data_reg.fields)
+        data_right = self.registers[2]
+        assert not any(f.sw_writable for f in data_right.fields)
+
+    def test_hw_writable_fields(self):
+        from systemrdl.rdltypes import AccessType
+        data_right = self.registers[2]
+        assert len(data_right.fields) == 1
+        assert data_right.fields[0].hw_writable
+        data_left = self.registers[3]
+        assert len(data_left.fields) == 1
+        assert data_left.fields[0].hw_writable
+
+    def test_hw_in_fields_on_model(self):
+        data_right = self.registers[2]
+        assert data_right.has_hw_in_fields
+        assert [f.name for f in data_right.hw_in_fields] == ["value"]
+
+    def test_control_has_no_hw_in_fields(self):
+        control = self.registers[0]
+        assert not control.has_hw_in_fields
+
+    def test_id_has_no_hw_in_fields(self):
+        id_reg = self.registers[4]
+        assert not id_reg.has_hw_in_fields
 
 
 # ---------------------------------------------------------------------------
@@ -125,30 +137,59 @@ class TestGenerateSvh:
 
     def test_localparam_values(self):
         assert "REGS_DATA_WIDTH    = 8" in self.svh
-        assert "REGS_MIN_ADDR_WIDTH = 2" in self.svh
+        assert "REGS_MIN_ADDR_WIDTH = 3" in self.svh
 
     def test_control_struct_fields(self):
-        # Must contain test, divider, enable in the packed struct
-        assert "test" in self.svh
-        assert "divider" in self.svh
         assert "enable" in self.svh
 
-    def test_hw_na_regs_excluded(self):
-        # data and id registers have hw=na fields only — no struct for them
-        assert "data__out_t" not in self.svh
+    def test_hw_na_regs_excluded_from_out(self):
+        assert "data_right__out_t" not in self.svh
+        assert "data_left__out_t" not in self.svh
         assert "id__out_t" not in self.svh
 
-    def test_top_level_struct_name(self):
+    def test_top_level_out_struct_name(self):
         assert "pdm_to_pcm_reg__out_t" in self.svh
 
     def test_control_struct_name(self):
         assert "pdm_to_pcm_reg__control__out_t" in self.svh
 
-    def test_fields_msb_first_in_struct(self):
-        # test (bits 7:3) must appear before enable (bit 0) in the packed struct
-        test_pos = self.svh.find("logic [4:0] test")
-        enable_pos = self.svh.find("logic enable")
-        assert test_pos < enable_pos
+    def test_nco_control_struct_name(self):
+        assert "pdm_to_pcm_reg__nco_control__out_t" in self.svh
+
+    def test_in_t_structs_generated(self):
+        assert "pdm_to_pcm_reg__data_right__in_t" in self.svh
+        assert "pdm_to_pcm_reg__data_left__in_t" in self.svh
+        assert "pdm_to_pcm_reg__in_t" in self.svh
+
+    def test_hw_writable_regs_excluded_from_out(self):
+        # data_right and data_left are hw=w, they belong in __in_t only
+        assert "data_right__out_t" not in self.svh
+        assert "data_left__out_t" not in self.svh
+
+    def test_hw_writable_regs_not_in_top_out_struct(self):
+        # top-level out_t should not have data_right or data_left members
+        # Search within the struct body of } pdm_to_pcm_reg__out_t;
+        marker = "} pdm_to_pcm_reg__out_t;"
+        end = self.svh.find(marker)
+        start = self.svh.rfind("typedef struct packed {", 0, end)
+        out_struct_body = self.svh[start:end]
+        assert "data_right" not in out_struct_body
+        assert "data_left" not in out_struct_body
+
+    def test_in_t_contains_data_fields(self):
+        # Search within the struct body of } pdm_to_pcm_reg__in_t;
+        marker = "} pdm_to_pcm_reg__in_t;"
+        end = self.svh.find(marker)
+        start = self.svh.rfind("typedef struct packed {", 0, end)
+        in_struct_body = self.svh[start:end + len(marker)]
+        assert "data_right" in in_struct_body
+        assert "data_left" in in_struct_body
+
+    def test_nco_control_msb_first_in_out_struct(self):
+        # high (bits 15:8) must appear before low (bits 7:0) in the packed struct
+        high_pos = self.svh.find("logic [7:0] high")
+        low_pos = self.svh.find("logic [7:0] low")
+        assert high_pos < low_pos
 
 
 # ---------------------------------------------------------------------------
@@ -206,8 +247,6 @@ class TestGenerateSv:
 
     def test_field_storage_signals(self):
         assert "control_enable" in self.sv
-        assert "control_divider" in self.sv
-        assert "control_test" in self.sv
 
     def test_no_next_load_signals(self):
         assert "next_" not in self.sv
@@ -224,9 +263,20 @@ class TestGenerateSv:
         assert "s_cpuif_req & ~s_cpuif_req_is_wr" in self.sv
 
     def test_hwif_out_assignments(self):
-        assert "assign hwif_out.control.test" in self.sv
-        assert "assign hwif_out.control.divider" in self.sv
         assert "assign hwif_out.control.enable" in self.sv
+        assert "assign hwif_out.nco_control.high" in self.sv
+        assert "assign hwif_out.nco_control.low" in self.sv
+
+    def test_hwif_in_port_present(self):
+        assert "input  pdm_to_pcm_reg__in_t hwif_in" in self.sv
+
+    def test_read_mux_routes_hwif_in(self):
+        assert "hwif_in.data_right.value" in self.sv
+        assert "hwif_in.data_left.value" in self.sv
+
+    def test_id_field_is_constant_not_hwif_in(self):
+        # id has hw=na — must be a constant, not routed through hwif_in
+        assert "hwif_in.id" not in self.sv
 
     def test_endmodule(self):
         assert "endmodule : regs" in self.sv

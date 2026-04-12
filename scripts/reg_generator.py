@@ -51,6 +51,11 @@ class FieldModel:
         return self.hw in (AccessType.r, AccessType.rw)
 
     @property
+    def hw_writable(self) -> bool:
+        """Field is driven in from hwif_in (hw writes the value)."""
+        return self.hw in (AccessType.w, AccessType.rw)
+
+    @property
     def sw_writable(self) -> bool:
         return self.sw in (AccessType.rw, AccessType.w)
 
@@ -70,7 +75,7 @@ class RegisterModel:
 
     @property
     def hw_fields(self) -> List[FieldModel]:
-        """Fields exposed on hwif_out, ordered MSB-first."""
+        """Fields exposed on hwif_out (HW reads), ordered MSB-first."""
         return sorted(
             [f for f in self.fields if f.hw_accessible],
             key=lambda f: f.high,
@@ -80,6 +85,19 @@ class RegisterModel:
     @property
     def has_hw_fields(self) -> bool:
         return bool(self.hw_fields)
+
+    @property
+    def hw_in_fields(self) -> List[FieldModel]:
+        """Fields driven from hwif_in (HW writes, SW reads), ordered MSB-first."""
+        return sorted(
+            [f for f in self.fields if f.hw_writable],
+            key=lambda f: f.high,
+            reverse=True,
+        )
+
+    @property
+    def has_hw_in_fields(self) -> bool:
+        return bool(self.hw_in_fields)
 
 
 # ---------------------------------------------------------------------------
@@ -148,11 +166,10 @@ def generate_svh(addrmap_name: str, addr_width: int, registers: List[RegisterMod
         "",
     ]
 
-    # Per-register packed struct (only registers that have hw-accessible fields)
+    # Per-register packed struct for hwif_out (HW reads, SW writes)
     hw_regs = [r for r in registers if r.has_hw_fields]
     for reg in hw_regs:
         struct_name = f"{addrmap_name}__{reg.name}__out_t"
-        # Fields listed MSB-first inside packed struct
         field_decls = "; ".join(
             f"{f.sv_type} {f.name}" for f in reg.hw_fields
         )
@@ -167,6 +184,27 @@ def generate_svh(addrmap_name: str, addr_width: int, registers: List[RegisterMod
         member_type = f"{addrmap_name}__{reg.name}__out_t"
         lines.append(f"    {member_type} {reg.name};")
     lines.append(f"}} {top_struct_name};")
+
+    # Per-register packed struct for hwif_in (HW writes, SW reads)
+    hw_in_regs = [r for r in registers if r.has_hw_in_fields]
+    if hw_in_regs:
+        lines.append("")
+        for reg in hw_in_regs:
+            struct_name = f"{addrmap_name}__{reg.name}__in_t"
+            field_decls = "; ".join(
+                f"{f.sv_type} {f.name}" for f in reg.hw_in_fields
+            )
+            lines.append(f"typedef struct packed {{ {field_decls}; }} {struct_name};")
+
+        lines.append("")
+
+        # Top-level input struct
+        top_in_struct_name = f"{addrmap_name}__in_t"
+        lines.append(f"typedef struct packed {{")
+        for reg in hw_in_regs:
+            member_type = f"{addrmap_name}__{reg.name}__in_t"
+            lines.append(f"    {member_type} {reg.name};")
+        lines.append(f"}} {top_in_struct_name};")
 
     lines += [
         "",
@@ -195,13 +233,19 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
     data_width = registers[0].data_width if registers else 8
     top_struct = f"{addrmap_name}__out_t"
     hw_regs = [r for r in registers if r.has_hw_fields]
+    hw_in_regs = [r for r in registers if r.has_hw_in_fields]
     rw_fields: List[tuple[RegisterModel, FieldModel]] = [
         (r, f) for r in registers for f in r.fields if f.sw_writable
     ]
+    top_in_struct = f"{addrmap_name}__in_t"
 
     L: List[str] = []
 
     # --- header ---
+    hwif_in_port = (
+        [f"    input  {top_in_struct} hwif_in,", f""]
+        if hw_in_regs else []
+    )
     L += [
         '`include "regs_defs.svh"',
         "",
@@ -217,6 +261,7 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
         f"    output logic [{data_width - 1}:0] s_cpuif_rd_data,",
         f"    output logic s_cpuif_wr_ack,",
         f"",
+        *hwif_in_port,
         f"    output {top_struct} hwif_out",
         f");",
         "",
@@ -284,11 +329,13 @@ def generate_sv(addrmap_name: str, addr_width: int, registers: List[RegisterMode
                     bit_slice = f"[{f.high}:{f.low}]" if f.width > 1 else f"[{f.low}]"
                     L.append(f"                rd_data{bit_slice} = {_sig(reg, f)};")
         else:
-            # RO / constant registers — emit reset value as constant
-            # collect fields with non-zero reset
+            # RO fields: route hwif_in for HW-writable, constant for hw=na
             for f in reg.fields:
                 bit_slice = f"[{f.high}:{f.low}]" if f.width > 1 else f"[{f.low}]"
-                L.append(f"                rd_data{bit_slice} = {f.width}'h{f.reset:x};")
+                if f.hw_writable:
+                    L.append(f"                rd_data{bit_slice} = hwif_in.{reg.name}.{f.name};")
+                else:
+                    L.append(f"                rd_data{bit_slice} = {f.width}'h{f.reset:x};")
         L.append("            end")
     L += [
         "            default: rd_data = {" + str(data_width) + "{1'b0}};",

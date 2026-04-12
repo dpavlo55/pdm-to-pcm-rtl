@@ -34,57 +34,6 @@ module pdm_to_pcm_top
     logic signed [7:0] cic_out;
     logic cic_out_valid;
 
-    spi spi_inst (
-        .clk   (clk),
-        .rst_n (rst_n),
-
-        // SPI interface
-        .sck   (spi_sck),
-        .mosi  (spi_mosi),
-        .miso  (spi_miso),
-        .cs_n  (spi_cs_n),
-
-        .mosi_data       (mosi_data),
-        .mosi_data_valid (mosi_data_valid),
-
-        .miso_data       (miso_data),
-        .miso_data_valid (miso_data_valid)
-    );
-
-    spi_to_regs_adapter spi_to_regs_adapter_inst (
-        .clk   (clk),
-        .rst_n (rst_n),
-
-        .mosi_data          (mosi_data),
-        .mosi_data_valid    (mosi_data_valid),
-
-        .miso_data          (miso_data),
-        .miso_data_valid    (miso_data_valid),
-
-        .cpuif_req          (s_cpuif_req),
-        .cpuif_req_is_wr    (s_cpuif_req_is_wr),
-        .cpuif_addr         (s_cpuif_addr),
-        .cpuif_wr_data      (s_cpuif_wr_data),
-        .cpuif_wr_ack       (s_cpuif_wr_ack),
-        .cpuif_rd_data      (s_cpuif_rd_data),
-        .cpuif_rd_ack       (s_cpuif_rd_ack)
-    );
-
-    regs regs_inst (
-        .clk   (clk),
-        .rst_n (rst_n),
-
-        .s_cpuif_req       (s_cpuif_req),
-        .s_cpuif_req_is_wr (s_cpuif_req_is_wr),
-        .s_cpuif_addr      (s_cpuif_addr),
-        .s_cpuif_wr_data   (s_cpuif_wr_data),
-        .s_cpuif_wr_ack    (s_cpuif_wr_ack),
-        .s_cpuif_rd_data   (s_cpuif_rd_data),
-        .s_cpuif_rd_ack    (s_cpuif_rd_ack),
-
-        .hwif_out          (hwif_out)
-    );
-
     logic [15:0] step;
     logic pdm_clk_re;
     logic pdm_clk_fe;
@@ -97,9 +46,61 @@ module pdm_to_pcm_top
     logic [7:0] cic_data_right;
     logic cic_data_right_valid;
 
-    //assign step = {hwif_out.control_high.value, hwif_out.control_low.value};
-    assign step = {hwif_out.nco_control.high, hwif_out.nco_control.low};
+    pdm_to_pcm_reg__in_t hwif_in;
 
+    spi spi_inst (
+        .clk             (clk),
+        .rst_n           (rst_n),
+
+        // SPI interface
+        .sck             (spi_sck),
+        .mosi            (spi_mosi),
+        .miso            (spi_miso),
+        .cs_n            (spi_cs_n),
+
+        .mosi_data       (mosi_data),
+        .mosi_data_valid (mosi_data_valid),
+
+        .miso_data       (miso_data),
+        .miso_data_valid (miso_data_valid)
+    );
+
+    spi_to_regs_adapter spi_to_regs_adapter_inst (
+        .clk             (clk),
+        .rst_n           (rst_n),
+
+        .mosi_data       (mosi_data),
+        .mosi_data_valid (mosi_data_valid),
+
+        .miso_data       (miso_data),
+        .miso_data_valid (miso_data_valid),
+
+        .cpuif_req       (s_cpuif_req),
+        .cpuif_req_is_wr (s_cpuif_req_is_wr),
+        .cpuif_addr      (s_cpuif_addr),
+        .cpuif_wr_data   (s_cpuif_wr_data),
+        .cpuif_wr_ack    (s_cpuif_wr_ack),
+        .cpuif_rd_data   (s_cpuif_rd_data),
+        .cpuif_rd_ack    (s_cpuif_rd_ack)
+    );
+
+    regs regs_inst (
+        .clk               (clk),
+        .rst_n             (rst_n),
+
+        .s_cpuif_req       (s_cpuif_req),
+        .s_cpuif_req_is_wr (s_cpuif_req_is_wr),
+        .s_cpuif_addr      (s_cpuif_addr),
+        .s_cpuif_wr_data   (s_cpuif_wr_data),
+        .s_cpuif_wr_ack    (s_cpuif_wr_ack),
+        .s_cpuif_rd_data   (s_cpuif_rd_data),
+        .s_cpuif_rd_ack    (s_cpuif_rd_ack),
+
+        .hwif_out          (hwif_out),
+        .hwif_in           (hwif_in)
+    );
+
+    assign step = {hwif_out.nco_control.high, hwif_out.nco_control.low};
 
     pdm_clk_gen pdm_clk_gen_inst (
         .clk        (clk),
@@ -132,6 +133,8 @@ module pdm_to_pcm_top
         .sig_out_valid (cic_data_left_valid)
     );
 
+    assign hwif_in.data_left  = cic_data_left;
+
     cic cic_right_inst (
         .clk           (clk),
         .rst_n         (rst_n),
@@ -140,5 +143,6 @@ module pdm_to_pcm_top
         .sig_out       (cic_data_right),
         .sig_out_valid (cic_data_right_valid)
     );
+    assign hwif_in.data_right = cic_data_right;
 
 endmodule : pdm_to_pcm_top
