@@ -26,7 +26,7 @@ module pdm_clk_gen #(
         else if (carry)
             pdm_clk_reg <= ~pdm_clk_reg;
 
-    always_ff @(posedge clk or negedge rst_n)
+    always_ff @(posedge clk)
         pdm_clk <= pdm_clk_reg;
 
     edge_detector pdm_clk_edge_inst (
