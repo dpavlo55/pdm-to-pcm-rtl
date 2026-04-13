@@ -14,21 +14,21 @@ module tt_um_top
     logic spi_mosi, mosi_meta, mosi;
     logic spi_cs_n, cs_n_meta, cs_n;
     logic spi_miso, miso;
-    logic pdm_in;
+    logic pdm_clk, pdm_data;  // pdm_clk is driven by pdm_to_pcm_top (output)
 
     assign spi_sck = ui_in[0];
     assign spi_mosi = ui_in[1];
     assign spi_cs_n = ui_in[2];
-    assign pdm_in = ui_in[3];
+    assign pdm_data = ui_in[3];
+    assign uio_out[0] = miso;
+    assign uio_out[7:1] = 7'b0;
+    assign uio_oe[0] = ~cs_n;  // enable output only when CS is asserted
+    assign uio_oe[7:1] = 7'b0;
 
-    assign uo_out[0] = spi_miso;
+    assign uo_out[0] = pdm_clk;  // PDM clock output to microphone
     assign uo_out[7:1] = 7'b0;
 
-    assign uio_out = 8'b0;
-    assign uio_oe  = 8'b0;
-
-
-    assign spi_miso = (cs_n == 1'b0) ? miso : 1'bZ;
+    assign spi_miso = miso;
 
     always_ff @(posedge clk) begin
         sck_meta <= spi_sck;
@@ -48,7 +48,8 @@ module tt_um_top
     pdm_to_pcm_top pdm_to_pcm_top_inst (
         .clk       (clk),
         .rst_n     (rst_n),
-        .pdm_in    (pdm_in),
+        .pdm_clk   (pdm_clk),
+        .pdm_data  (pdm_data),
         .spi_sck   (sck),
         .spi_mosi  (mosi),
         .spi_miso  (miso),
