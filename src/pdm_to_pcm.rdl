@@ -20,21 +20,33 @@ addrmap pdm_to_pcm_reg {
     } control;
 
     reg {
-        name = "Register name";
-        desc = "Register description";
+        name = "nco_control";
+        desc = "NCO step register. Controls the PDM clock frequency.
+
+            The PDM clock frequency is:
+
+            $$f_{PDM} = \\frac{step \\cdot f_{clk}}{2^{17}}$$
+
+            Solving for step:
+
+            $$step = \\frac{f_{PDM} \\cdot 2^{17}}{f_{clk}}$$
+
+            Example: $f_{clk} = 48\\,\\text{MHz}$, $f_{PDM} = 1.536\\,\\text{MHz}$ (48 kHz audio, R=32):
+
+            $$step = \\frac{1{,}536{,}000 \\cdot 131072}{48{,}000{,}000} = 4096$$";
 
         regwidth = 16;
 
         field {
-            name = "Field name";
-            desc = "Field description";
+            name = "step[15:8]";
+            desc = "Upper byte of the 16-bit NCO step value";
             sw   = rw;
             hw   = r;
         } high[15:8] = 0x0;
 
         field {
-            name = "Field name";
-            desc = "Field description";
+            name = "step[7:0]";
+            desc = "Lower byte of the 16-bit NCO step value";
             sw   = rw;
             hw   = r;
         } low[7:0] = 0x0;

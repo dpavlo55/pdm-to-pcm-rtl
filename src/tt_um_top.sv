@@ -15,6 +15,7 @@ module tt_um_top
     logic spi_cs_n, cs_n_meta, cs_n;
     logic spi_miso, miso;
     logic pdm_clk, pdm_data;  // pdm_clk is driven by pdm_to_pcm_top (output)
+    logic i2s_bclk, i2s_lrclk, i2s_sdata;
 
     assign spi_sck = ui_in[0];
     assign spi_mosi = ui_in[1];
@@ -25,8 +26,11 @@ module tt_um_top
     assign uio_oe[0] = ~cs_n;  // enable output only when CS is asserted
     assign uio_oe[7:1] = 7'b0;
 
-    assign uo_out[0] = pdm_clk;  // PDM clock output to microphone
-    assign uo_out[7:1] = 7'b0;
+    assign uo_out[0] = pdm_clk;    // PDM clock output to microphone
+    assign uo_out[1] = i2s_bclk;   // I2S bit clock
+    assign uo_out[2] = i2s_lrclk;  // I2S word select (0=left, 1=right)
+    assign uo_out[3] = i2s_sdata;  // I2S serial data
+    assign uo_out[7:4] = 4'b0;
 
     assign spi_miso = miso;
 
@@ -53,7 +57,10 @@ module tt_um_top
         .spi_sck   (sck),
         .spi_mosi  (mosi),
         .spi_miso  (miso),
-        .spi_cs_n  (cs_n)
+        .spi_cs_n  (cs_n),
+        .i2s_bclk  (i2s_bclk),
+        .i2s_lrclk (i2s_lrclk),
+        .i2s_sdata (i2s_sdata)
     );
 
 endmodule : tt_um_top

@@ -12,7 +12,12 @@ module pdm_to_pcm_top
         input logic spi_sck,
         input logic spi_mosi,
         output logic spi_miso,
-        input logic spi_cs_n
+        input logic spi_cs_n,
+
+        // I2S output
+        output logic i2s_bclk,
+        output logic i2s_lrclk,
+        output logic i2s_sdata
     );
 
     logic [7:0] mosi_data;
@@ -140,5 +145,19 @@ module pdm_to_pcm_top
         .sig_out_valid (cic_data_right_valid)
     );
     assign hwif_in.data_right = cic_data_right;
+
+    i2s i2s_inst (
+        .clk              (clk),
+        .rst_n            (rst_n),
+
+        .data_left        (cic_data_left),
+        .data_left_valid  (cic_data_left_valid),
+        .data_right       (cic_data_right),
+        .data_right_valid (cic_data_right_valid),
+
+        .bclk             (i2s_bclk),
+        .lrclk            (i2s_lrclk),
+        .sdata            (i2s_sdata)
+    );
 
 endmodule : pdm_to_pcm_top
