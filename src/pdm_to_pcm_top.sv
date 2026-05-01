@@ -28,7 +28,7 @@ module pdm_to_pcm_top
 
     logic s_cpuif_req;
     logic s_cpuif_req_is_wr;
-    logic [2:0] s_cpuif_addr;
+    logic [3:0] s_cpuif_addr;
     logic [7:0] s_cpuif_wr_data;
     logic s_cpuif_wr_ack;
     logic [7:0] s_cpuif_rd_data;
@@ -145,20 +145,6 @@ module pdm_to_pcm_top
         .sig_out_valid (cic_data_right_valid)
     );
     assign {hwif_in.data_right.value_msb, hwif_in.data_right.value_lsb} = cic_data_right;
-
-    fifo #(
-        .DATA_WIDTH(16),
-        .ADDR_WIDTH(1)
-    ) fifo_left_inst (
-        .clk    (clk),
-        .rst_n  (rst_n),
-        .wr_en  (cic_data_left_valid),
-        .din    (cic_data_left),
-        .rd_en  (1'b0),  // Read one sample per left channel
-        .dout   (i2s_data_left),
-        .full   (),
-        .empty  ()
-    );
 
     i2s i2s_inst (
         .clk              (clk),

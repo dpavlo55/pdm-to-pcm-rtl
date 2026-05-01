@@ -24,10 +24,14 @@ module i2s
     localparam logic LRCLK_LEFT = 1'b0;
     localparam logic LRCLK_RIGHT = 1'b1;
 
+    localparam logic [4:0] BITS_PER_SAMPLE = 5'd16;
+
     logic data_ready;
     logic ready;
 
+    logic [15:0] reg_data_left_shadow;
     logic [15:0] reg_data_left;
+    logic [15:0] reg_data_right_shadow;
     logic [15:0] reg_data_right;
 
     logic [4:0] bit_cnt;
@@ -45,24 +49,24 @@ module i2s
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
             ready <= 1'b0;
-        end else if (data_ready && pdm_clk_re) begin
+        end else if (data_ready && pdm_clk_fe) begin
             ready <= 1'b1;
         end
 
-    // left register
+    // left shadow register
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
-            reg_data_left <= '0;
+            reg_data_left_shadow <= '0;
         end else if (data_left_valid) begin
-            reg_data_left <= data_left;
+            reg_data_left_shadow <= data_left;
         end
 
-    // right register
+    // right shadow register
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
-            reg_data_right <= '0;
+            reg_data_right_shadow <= '0;
         end else if (data_right_valid) begin
-            reg_data_right <= data_right;
+            reg_data_right_shadow <= data_right;
         end
 
     // bit counter
@@ -70,7 +74,7 @@ module i2s
         if (!rst_n) begin
             bit_cnt <= 5'd1;
         end else if (ready) begin
-            if (pdm_clk_fe) begin
+            if (pdm_clk_re) begin
                 bit_cnt <= bit_cnt - 1'b1;
             end
         end
@@ -87,11 +91,31 @@ module i2s
             lrclk <= LRCLK_RIGHT;
         end else if (ready) begin
             if (pdm_clk_fe) begin
-                if (bit_cnt == 5'd1) begin
+                if (bit_cnt == 5'd0) begin
                     lrclk <= LRCLK_LEFT;
-                end else if (bit_cnt == 5'd17) begin
+                end else if (bit_cnt == BITS_PER_SAMPLE) begin
                     lrclk <= LRCLK_RIGHT;
                 end
+            end
+        end
+
+    // left data register
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            reg_data_left <= '0;
+        end else if (pdm_clk_fe) begin
+            if (lrclk_internal == LRCLK_RIGHT && bit_index == 4'd0) begin
+                reg_data_left <= reg_data_left_shadow;
+            end
+        end
+
+    // right data register
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            reg_data_right <= '0;
+        end else if (pdm_clk_fe) begin
+            if (lrclk_internal == LRCLK_LEFT && bit_index == 4'd0) begin
+                reg_data_right <= reg_data_right_shadow;
             end
         end
 
