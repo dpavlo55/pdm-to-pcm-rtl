@@ -41,9 +41,9 @@ module pdm_to_pcm_top
     logic pdm_data_left_valid;
     logic [0:0] pdm_data_right;
     logic pdm_data_right_valid;
-    logic [7:0] cic_data_left;
+    logic [15:0] cic_data_left;
     logic cic_data_left_valid;
-    logic [7:0] cic_data_right;
+    logic [15:0] cic_data_right;
     logic cic_data_right_valid;
 
     pdm_to_pcm_reg__out_t hwif_out;
@@ -134,7 +134,7 @@ module pdm_to_pcm_top
         .sig_out_valid (cic_data_left_valid)
     );
 
-    assign hwif_in.data_left  = cic_data_left;
+    assign {hwif_in.data_left.value_msb, hwif_in.data_left.value_lsb} = cic_data_left;
 
     cic cic_right_inst (
         .clk           (clk),
@@ -144,7 +144,21 @@ module pdm_to_pcm_top
         .sig_out       (cic_data_right),
         .sig_out_valid (cic_data_right_valid)
     );
-    assign hwif_in.data_right = cic_data_right;
+    assign {hwif_in.data_right.value_msb, hwif_in.data_right.value_lsb} = cic_data_right;
+
+    fifo #(
+        .DATA_WIDTH(16),
+        .ADDR_WIDTH(1)
+    ) fifo_left_inst (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .wr_en  (cic_data_left_valid),
+        .din    (cic_data_left),
+        .rd_en  (1'b0),  // Read one sample per left channel
+        .dout   (i2s_data_left),
+        .full   (),
+        .empty  ()
+    );
 
     i2s i2s_inst (
         .clk              (clk),
@@ -154,6 +168,10 @@ module pdm_to_pcm_top
         .data_left_valid  (cic_data_left_valid),
         .data_right       (cic_data_right),
         .data_right_valid (cic_data_right_valid),
+
+        .pdm_clk          (pdm_clk),
+        .pdm_clk_re       (pdm_clk_re),
+        .pdm_clk_fe       (pdm_clk_fe),
 
         .bclk             (i2s_bclk),
         .lrclk            (i2s_lrclk),

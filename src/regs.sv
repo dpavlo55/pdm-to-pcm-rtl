@@ -6,7 +6,7 @@ module regs (
 
     input  logic s_cpuif_req,
     input  logic s_cpuif_req_is_wr,
-    input  logic [2:0] s_cpuif_addr,
+    input  logic [3:0] s_cpuif_addr,
     input  logic [7:0] s_cpuif_wr_data,
     output logic s_cpuif_rd_ack,
     output logic [7:0] s_cpuif_rd_data,
@@ -24,9 +24,9 @@ module regs (
     logic wr_strobe_nco_control_w0;
     logic wr_strobe_nco_control_w1;
 
-    assign wr_strobe_control = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h0);
-    assign wr_strobe_nco_control_w0 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h2);
-    assign wr_strobe_nco_control_w1 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h3);
+    assign wr_strobe_control = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 4'h0);
+    assign wr_strobe_nco_control_w0 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 4'h2);
+    assign wr_strobe_nco_control_w1 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 4'h3);
 
     //--------------------------------------------------------------------------
     // Field storage
@@ -60,22 +60,28 @@ module regs (
     always_comb begin
         rd_data = 8'h0;
         case (s_cpuif_addr)
-            3'h0: begin
+            4'h0: begin
                 rd_data[0] = control_enable;
             end
-            3'h2: begin
+            4'h2: begin
                 rd_data[7:0] = nco_control_low;
             end
-            3'h3: begin
+            4'h3: begin
                 rd_data[7:0] = nco_control_high;
             end
-            3'h4: begin
-                rd_data[7:0] = hwif_in.data_right.value;
+            4'h4: begin
+                rd_data[7:0] = hwif_in.data_right.value_lsb;
             end
-            3'h5: begin
-                rd_data[7:0] = hwif_in.data_left.value;
+            4'h5: begin
+                rd_data[7:0] = hwif_in.data_right.value_msb;
             end
-            3'h6: begin
+            4'h6: begin
+                rd_data[7:0] = hwif_in.data_left.value_lsb;
+            end
+            4'h7: begin
+                rd_data[7:0] = hwif_in.data_left.value_msb;
+            end
+            4'h8: begin
                 rd_data[7:0] = 8'hda;
             end
             default: rd_data = {8{1'b0}};

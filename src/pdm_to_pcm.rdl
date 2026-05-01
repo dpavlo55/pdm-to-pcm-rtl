@@ -56,12 +56,21 @@ addrmap pdm_to_pcm_reg {
         name = "Register name";
         desc = "Register description";
 
+        regwidth = 16;
+
         field {
             name = "Field name";
             desc = "Field description";
             hw = w;
             sw = r;
-        } value[7:0] = 0x0;
+        } value_msb[15:8] = 0x0;
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            hw = w;
+            sw = r;
+        } value_lsb[7:0] = 0x0;
 
     } data_right;
 
@@ -69,12 +78,21 @@ addrmap pdm_to_pcm_reg {
         name = "Register name";
         desc = "Register description";
 
+        regwidth = 16;
+
         field {
             name = "Field name";
             desc = "Field description";
             hw = w;
             sw = r;
-        } value[7:0] = 0x0;
+        } value_msb[15:8] = 0x0;
+
+        field {
+            name = "Field name";
+            desc = "Field description";
+            hw = w;
+            sw = r;
+        } value_lsb[7:0] = 0x0;
 
     } data_left;
 
