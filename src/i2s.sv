@@ -58,7 +58,7 @@ module i2s
         if (!rst_n) begin
             reg_data_left_shadow <= '0;
         end else if (data_left_valid) begin
-            reg_data_left_shadow <= {data_left, 8'b0};
+            reg_data_left_shadow <= data_left;
         end
 
     // right shadow register
@@ -66,7 +66,7 @@ module i2s
         if (!rst_n) begin
             reg_data_right_shadow <= '0;
         end else if (data_right_valid) begin
-            reg_data_right_shadow <= {data_right, 8'b0};
+            reg_data_right_shadow <= data_right;
         end
 
     // bit counter
@@ -105,7 +105,7 @@ module i2s
             reg_data_left <= '0;
         end else if (pdm_clk_fe) begin
             if (lrclk_internal == LRCLK_RIGHT && bit_index == 4'd0) begin
-                reg_data_left <= reg_data_left_shadow;
+                reg_data_left <= {reg_data_left_shadow, 8'b0};
             end
         end
 
@@ -115,7 +115,7 @@ module i2s
             reg_data_right <= '0;
         end else if (pdm_clk_fe) begin
             if (lrclk_internal == LRCLK_LEFT && bit_index == 4'd0) begin
-                reg_data_right <= reg_data_right_shadow;
+                reg_data_right <= {reg_data_right_shadow, 8'b0};
             end
         end
 
