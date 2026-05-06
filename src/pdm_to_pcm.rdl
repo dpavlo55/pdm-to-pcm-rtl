@@ -31,9 +31,11 @@ addrmap pdm_to_pcm_reg {
 
             $$step = \\frac{f_{PDM} \\cdot 2^{17}}{f_{clk}}$$
 
-            Example: $f_{clk} = 48\\,\\text{MHz}$, $f_{PDM} = 1.536\\,\\text{MHz}$ (48 kHz audio, R=32):
+            Example: $f_{clk} = 48\\,\\text{MHz}$, $f_{PDM} = 1.536\\,
+            \\text{MHz}$ (48 kHz audio, R=32):
 
-            $$step = \\frac{1{,}536{,}000 \\cdot 131072}{48{,}000{,}000} = 4096$$";
+            $$step = \\frac{1{,}536{,}000 \\cdot 131072}{48{,}000{,}000} =
+            4194$$";
 
         regwidth = 16;
 
@@ -53,12 +55,14 @@ addrmap pdm_to_pcm_reg {
     } nco_control;
 
     reg {
-        name = "Register name";
-        desc = "Register description";
+        name = "data_right";
+        desc = "PCM output for the right audio channel. Sampled on the falling
+            edge of the PDM clock. Updated by hardware after each CIC decimation
+            cycle.";
 
         field {
-            name = "Field name";
-            desc = "Field description";
+            name = "value";
+            desc = "8-bit PCM sample for the right channel.";
             hw = w;
             sw = r;
         } value[7:0] = 0x0;
@@ -66,12 +70,14 @@ addrmap pdm_to_pcm_reg {
     } data_right;
 
     reg {
-        name = "Register name";
-        desc = "Register description";
+        name = "data_left";
+        desc = "PCM output for the left audio channel.
+            Sampled on the rising edge of the PDM clock. Updated by hardware
+            after each CIC decimation cycle.";
 
         field {
-            name = "Field name";
-            desc = "Field description";
+            name = "value";
+            desc = "8-bit PCM sample for the left channel.";
             hw = w;
             sw = r;
         } value[7:0] = 0x0;

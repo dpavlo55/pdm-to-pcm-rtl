@@ -28,7 +28,7 @@ module pdm_to_pcm_top
 
     logic s_cpuif_req;
     logic s_cpuif_req_is_wr;
-    logic [3:0] s_cpuif_addr;
+    logic [2:0] s_cpuif_addr;
     logic [7:0] s_cpuif_wr_data;
     logic s_cpuif_wr_ack;
     logic [7:0] s_cpuif_rd_data;
@@ -41,9 +41,9 @@ module pdm_to_pcm_top
     logic pdm_data_left_valid;
     logic [0:0] pdm_data_right;
     logic pdm_data_right_valid;
-    logic [15:0] cic_data_left;
+    logic [7:0] cic_data_left;
     logic cic_data_left_valid;
-    logic [15:0] cic_data_right;
+    logic [7:0] cic_data_right;
     logic cic_data_right_valid;
 
     pdm_to_pcm_reg__out_t hwif_out;
@@ -134,7 +134,7 @@ module pdm_to_pcm_top
         .sig_out_valid (cic_data_left_valid)
     );
 
-    assign {hwif_in.data_left.value_msb, hwif_in.data_left.value_lsb} = cic_data_left;
+    assign hwif_in.data_left.value = cic_data_left;
 
     cic cic_right_inst (
         .clk           (clk),
@@ -144,7 +144,8 @@ module pdm_to_pcm_top
         .sig_out       (cic_data_right),
         .sig_out_valid (cic_data_right_valid)
     );
-    assign {hwif_in.data_right.value_msb, hwif_in.data_right.value_lsb} = cic_data_right;
+
+    assign hwif_in.data_right.value = cic_data_right;
 
     i2s i2s_inst (
         .clk              (clk),
