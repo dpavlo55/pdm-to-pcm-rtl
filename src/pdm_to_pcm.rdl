@@ -52,7 +52,7 @@ addrmap pdm_to_pcm_reg {
             sw   = rw;
             hw   = r;
         } low[7:0] = 0x0;
-    } nco_control;
+    } nco_control @ 0x1;
 
     reg {
         name = "data_right";
@@ -67,7 +67,7 @@ addrmap pdm_to_pcm_reg {
             sw = r;
         } value[7:0] = 0x0;
 
-    } data_right;
+    } data_right @ 0x3;
 
     reg {
         name = "data_left";
@@ -82,7 +82,7 @@ addrmap pdm_to_pcm_reg {
             sw = r;
         } value[7:0] = 0x0;
 
-    } data_left;
+    } data_left @ 0x4;
 
     reg {
         name = "id";
@@ -95,6 +95,6 @@ addrmap pdm_to_pcm_reg {
             hw = na;
         } value [7:0] = 8'hDA;
 
-    } id;
+    } id @ 0x5;
 
 };

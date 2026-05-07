@@ -17,73 +17,42 @@ module spi_to_regs_adapter (
     input logic cpuif_rd_ack
 );
 
-    typedef enum logic [1:0] {
-        IDLE,
-        WRITE,
-        READ,
-        WAIT
-    } state_t;
-
-    // types
-    typedef enum logic [2:0] {
-        SPI_READ = 3'b000,
-        SPI_WRITE = 3'b001
-    } cmd_t;
-
-    state_t state;
-    logic [2:0] addr;
+    // Tracks whether the next valid byte is the cmd/addr byte (0) or data byte (1).
+    // Toggles on every mosi_data_valid, since transfers are always exactly 2 bytes.
+    logic byte_sel;
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
-            state <= IDLE;
-            cpuif_req <= 1'b0;
+            byte_sel        <= 1'b0;
+            cpuif_req       <= 1'b0;
             cpuif_req_is_wr <= 1'b0;
-            cpuif_addr <= '0;
-            cpuif_wr_data <= '0;
-            miso_data <= '0;
+            cpuif_addr      <= '0;
+            cpuif_wr_data   <= '0;
+            miso_data       <= '0;
             miso_data_valid <= 1'b0;
         end else begin
-            case (state)
-                IDLE: begin
-                    cpuif_req <= 1'b0;
-                    miso_data_valid <= 1'b0;
-                    if (mosi_data_valid) begin
-                        if (mosi_data[7:5] == SPI_WRITE) begin
-                            state <= WRITE;
-                            cpuif_req_is_wr <= 1'b1;
-                            cpuif_addr <= mosi_data[2:0];
-                            cpuif_wr_data <= mosi_data;
-                        end else if (mosi_data[7:5] == SPI_READ) begin
-                            state <= READ;
-                            cpuif_req_is_wr <= 1'b0;
-                            cpuif_addr <= mosi_data[2:0];
-                            cpuif_req <= 1'b1;
-                        end else begin
-                            state <= IDLE; // Invalid command, stay in IDLE
-                        end
-                    end
+            cpuif_req       <= 1'b0;
+            miso_data_valid <= 1'b0;
+
+            if (mosi_data_valid) begin
+                byte_sel <= ~byte_sel;
+                if (!byte_sel) begin
+                    // Byte 0: {3'b0, cmd, 1'b0, addr[2:0]}
+                    // bit [4] = cmd: 1 for write, 0 for read
+                    cpuif_req_is_wr <= mosi_data[4];
+                    cpuif_addr      <= mosi_data[2:0];
+                    cpuif_req       <= ~mosi_data[4]; // issue read immediately
+                end else begin
+                    // Byte 1: data - only issue request for writes
+                    cpuif_req     <= cpuif_req_is_wr;
+                    cpuif_wr_data <= mosi_data;
                 end
-                WRITE: begin
-                    if (mosi_data_valid) begin
-                        state <= IDLE;
-                        cpuif_req <= 1'b1;
-                        cpuif_wr_data <= mosi_data;
-                    end
-                end
-                READ: begin
-                    if (cpuif_rd_ack) begin
-                        state <= WAIT;
-                        cpuif_req <= 1'b0;
-                        miso_data <= cpuif_rd_data;
-                        miso_data_valid <= 1'b1;
-                    end
-                end
-                WAIT: begin
-                    if (mosi_data_valid) begin
-                        state <= IDLE;
-                    end
-                end
-            endcase
+            end
+
+            if (cpuif_rd_ack) begin
+                miso_data       <= cpuif_rd_data;
+                miso_data_valid <= 1'b1;
+            end
         end
 
 endmodule
