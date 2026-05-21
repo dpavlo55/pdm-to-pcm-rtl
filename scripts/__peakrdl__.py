@@ -39,6 +39,7 @@ class FieldModel:
     sw: AccessType
     hw: AccessType
     reset: int
+    singlepulse: bool = False
 
     @property
     def width(self) -> int:
@@ -401,6 +402,9 @@ def _generate_sv(
         L.append(f"            {sig} <= {reset_val};")
         L.append(f"        else if ({strobe})")
         L.append(f"            {sig} <= {source};")
+        if f.singlepulse:
+            L.append(f"        else")
+            L.append(f"            {sig} <= {reset_val};")
         L.append("")
 
     # --- read mux ---
@@ -502,6 +506,7 @@ def _build_model(
                 sw=field_node.get_property("sw"),
                 hw=field_node.get_property("hw"),
                 reset=field_node.get_property("reset") or 0,
+                singlepulse=bool(field_node.get_property("singlepulse") or False),
             ))
         registers.append(reg)
         if buf_writes:
