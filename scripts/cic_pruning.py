@@ -22,6 +22,7 @@ class CicParams:
     max_width: int
     trunc_bits: int
     stages: List[StageParams] = field(default_factory=list)
+    b1_adjusted: bool = False  # True when B1 was forced to 0 (DSPRelated Jan. 2022 update)
 
 
 def compute_cic_params(N: int, R: int, M: int, Bin: int, Bout: int) -> CicParams:
@@ -56,6 +57,17 @@ def compute_cic_params(N: int, R: int, M: int, Bin: int, Bout: int) -> CicParams
         for f in F_sub_j
     ]
 
+    # Hogenauer B1 fix (DSPRelated Jan. 2022 update):
+    # If pruning recommends truncating the input before the first integrator
+    # (B1 > 0), set B1 = 0 and push that truncation to the second stage
+    # (B2 += 1).  This avoids a 6 dB SNR penalty on the input sequence
+    # before any filtering takes place.
+    b1_adjusted = False
+    if B_sub_j[0] > 0:
+        B_sub_j[0] = 0
+        B_sub_j[1] += 1
+        b1_adjusted = True
+
     stages: List[StageParams] = []
     for idx, bj_raw in enumerate(B_sub_j[:-1], start=1):
         _, bj_eff = _format_bj(int(bj_raw))
@@ -67,6 +79,7 @@ def compute_cic_params(N: int, R: int, M: int, Bin: int, Bout: int) -> CicParams
         max_width=max_width,
         trunc_bits=trunc_bits,
         stages=stages,
+        b1_adjusted=b1_adjusted,
     )
 
 
@@ -169,13 +182,24 @@ def calculate_cic_pruning(N: int, R: int, M: int, Bin: int, Bout: int, passband:
         for f in F_sub_j
     ]
 
+    # Mirror the B1 fix applied in compute_cic_params for display consistency
+    show_b1_adjusted = False
+    if B_sub_j_raw[0] > 0:
+        B_sub_j_raw[0] = 0
+        B_sub_j_raw[1] += 1
+        show_b1_adjusted = True
+
     for stage, bj_raw in enumerate(B_sub_j_raw[:-1], start=1):
         bj_display, bj_effective = _format_bj(int(bj_raw))
         print(f"{stage:^10} | {bj_display:^8} | {params.max_width - bj_effective:^21}")
 
     # Final output stage
     bj_final_display, _ = _format_bj(int(params.trunc_bits))
-    print(f"{2 * N + 1:^10} | {bj_final_display:^8} | {f'{Bout} (final)':^21}\n")
+    print(f"{2 * N + 1:^10} | {bj_final_display:^8} | {f'{Bout} (final)':^21}")
+
+    if show_b1_adjusted:
+        print("Note: B1 was set to 0 and B2 incremented by 1 (see DSPRelated Jan. 2022 update).")
+    print()
 
     if passband is not None:
         droop_db, alias_db = compute_passband_metrics(params, passband)
