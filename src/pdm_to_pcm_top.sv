@@ -125,27 +125,39 @@ module pdm_to_pcm_top
         .pdm_data_right_valid (pdm_data_right_valid)
     );
 
-    cic cic_left_inst (
-        .clk           (clk),
-        .rst_n         (rst_n),
-        .sig_in        (pdm_data_left),
-        .sig_in_valid  (pdm_data_left_valid),
-        .sig_out       (cic_data_left),
-        .sig_out_valid (cic_data_left_valid)
-    );
+    //cic cic_left_inst (
+    //    .clk           (clk),
+    //    .rst_n         (rst_n),
+    //    .sig_in        (pdm_data_left),
+    //    .sig_in_valid  (pdm_data_left_valid),
+    //    .sig_out       (cic_data_left),
+    //    .sig_out_valid (cic_data_left_valid)
+    //);
 
     assign hwif_in.data_left.value = cic_data_left;
 
-    cic cic_right_inst (
-        .clk           (clk),
-        .rst_n         (rst_n),
-        .sig_in        (pdm_data_right),
-        .sig_in_valid  (pdm_data_right_valid),
-        .sig_out       (cic_data_right),
-        .sig_out_valid (cic_data_right_valid)
-    );
+    //cic cic_right_inst (
+    //    .clk           (clk),
+    //    .rst_n         (rst_n),
+    //    .sig_in        (pdm_data_right),
+    //    .sig_in_valid  (pdm_data_right_valid),
+    //    .sig_out       (cic_data_right),
+    //    .sig_out_valid (cic_data_right_valid)
+    //);
 
     assign hwif_in.data_right.value = cic_data_right;
+
+    cic_dual_folded cic_dual_folded_inst (
+        .clk                 (clk),
+        .rst_n               (rst_n),
+        .sig_in_left         (pdm_data_left),
+        .sig_in_right        (pdm_data_right),
+        .sig_in_valid        (pdm_data_right_valid),
+        .sig_out_right       (cic_data_right),
+        .sig_out_left        (cic_data_left),
+        .sig_out_right_valid (cic_data_right_valid),
+        .sig_out_left_valid  (cic_data_left_valid)
+    );
 
     i2s i2s_inst (
         .clk              (clk),
