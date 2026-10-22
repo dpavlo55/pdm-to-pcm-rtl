@@ -4,9 +4,9 @@ module i2s
         input  logic rst_n,
 
         // PCM input — signed 8-bit, one-cycle valid pulse per sample
-        input  logic [7:0] data_left,
+        input  logic [15:0] data_left,
         input  logic data_left_valid,
-        input  logic [7:0] data_right,
+        input  logic [15:0] data_right,
         input  logic data_right_valid,
 
         // PDM clock inputs
@@ -29,9 +29,9 @@ module i2s
     logic data_ready;
     logic ready;
 
-    logic [7:0] reg_data_left_shadow;
+    logic [15:0] reg_data_left_shadow;
     logic [15:0] reg_data_left;
-    logic [7:0] reg_data_right_shadow;
+    logic [15:0] reg_data_right_shadow;
     logic [15:0] reg_data_right;
 
     logic [4:0] bit_cnt;
@@ -105,7 +105,7 @@ module i2s
             reg_data_left <= '0;
         end else if (pdm_clk_fe) begin
             if (lrclk_internal == LRCLK_RIGHT && bit_index == 4'd0) begin
-                reg_data_left <= {reg_data_left_shadow, 8'b0};
+                reg_data_left <= reg_data_left_shadow;
             end
         end
 
@@ -115,7 +115,7 @@ module i2s
             reg_data_right <= '0;
         end else if (pdm_clk_fe) begin
             if (lrclk_internal == LRCLK_LEFT && bit_index == 4'd0) begin
-                reg_data_right <= {reg_data_right_shadow, 8'b0};
+                reg_data_right <= reg_data_right_shadow;
             end
         end
 

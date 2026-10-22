@@ -4,14 +4,17 @@
 // Max accumulator width: 16 bits  |  Output truncation: 8 bits
 
 module cic_dual_folded
+    #(
+        parameter unsigned DATA_WIDTH = 8
+    )
     (
         input  logic clk,
         input  logic rst_n,
         input  logic [0:0] sig_in_left,
         input  logic [0:0] sig_in_right,
         input  logic sig_in_valid,
-        output logic [7:0] sig_out_left,
-        output logic [7:0] sig_out_right,
+        output logic [DATA_WIDTH-1:0] sig_out_left,
+        output logic [DATA_WIDTH-1:0] sig_out_right,
         output logic sig_out_left_valid,
         output logic sig_out_right_valid
     );
@@ -20,8 +23,8 @@ module cic_dual_folded
     // State Registers (Carousel / Shift Registers)
     //--------------------------------------------------------------------------
     // Eliminates multiplexer trees by rotating data past the ALU
-    logic signed [15:0] sr_int  [0:5]; // 0-2: Ch Left Int, 3-5: Ch Right Int
-    logic signed [15:0] sr_comb [0:5]; // 0-2: Ch Left Comb, 3-5: Ch Right Comb
+    logic signed [16:0] sr_int  [0:5]; // 0-2: Ch Left Int, 3-5: Ch Right Int
+    logic signed [16:0] sr_comb [0:5]; // 0-2: Ch Left Comb, 3-5: Ch Right Comb
 
     logic sig_in_left_reg;
     logic sig_in_right_reg;
@@ -30,9 +33,9 @@ module cic_dual_folded
     // ALU Core
     //--------------------------------------------------------------------------
     logic alu_sub;
-    logic signed [15:0] alu_op_a;
-    logic signed [15:0] alu_op_b;
-    logic signed [15:0] alu_out;
+    logic signed [16:0] alu_op_a;
+    logic signed [16:0] alu_op_b;
+    logic signed [16:0] alu_out;
 
     always_comb alu_out = alu_sub ? (alu_op_a - alu_op_b) : (alu_op_a + alu_op_b);
 
@@ -46,9 +49,9 @@ module cic_dual_folded
     logic [4:0] dec_cnt;
     logic is_decim_sample;
 
-    logic signed [15:0] acc;
-    logic signed [15:0] ch_left_int_last;
-    logic signed [15:0] ch_right_int_last;
+    logic signed [16:0] acc;
+    logic signed [16:0] ch_left_int_last;
+    logic signed [16:0] ch_right_int_last;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -57,11 +60,11 @@ module cic_dual_folded
             dec_cnt              <= 5'h0;
             is_decim_sample      <= 1'b0;
             alu_sub              <= 1'b0;
-            alu_op_a             <= 16'h0;
-            alu_op_b             <= 16'h0;
-            acc                  <= 16'h0;
-            ch_left_int_last     <= 16'h0;
-            ch_right_int_last    <= 16'h0;
+            alu_op_a             <= 17'h0;
+            alu_op_b             <= 17'h0;
+            acc                  <= 17'h0;
+            ch_left_int_last     <= 17'h0;
+            ch_right_int_last    <= 17'h0;
             sig_out_left         <= 8'h0;
             sig_out_right        <= 8'h0;
             sig_out_left_valid   <= 1'b0;
@@ -70,8 +73,8 @@ module cic_dual_folded
             sig_in_right_reg     <= 1'b0;
 
             for (int i = 0; i < 6; i++) begin
-                sr_int[i]  <= 16'h0;
-                sr_comb[i] <= 16'h0;
+                sr_int[i]  <= 17'h0;
+                sr_comb[i] <= 17'h0;
             end
         end else begin
             sig_out_left_valid  <= 1'b0;
@@ -95,7 +98,7 @@ module cic_dual_folded
                 // Step 0 Prime: Ch Left Integrator 0 (+1 if pdm==1, -1 if pdm==0)
                 alu_sub  <= ~sig_in_left;
                 alu_op_a <= sr_int[0];
-                alu_op_b <= 16'sd1;
+                alu_op_b <= 17'sd1;
 
             end else if (active) begin
                 step <= step + 1'b1;
@@ -117,7 +120,7 @@ module cic_dual_folded
                         // Transition to Step 3: Ch Right Integrator 0
                         alu_sub  <= ~sig_in_right_reg;
                         alu_op_a <= sr_int[1]; // FIX: Was sr_int[3]
-                        alu_op_b <= 16'sd1;
+                        alu_op_b <= 17'sd1;
                     end else begin
                         alu_sub  <= 1'b0;
                         alu_op_a <= sr_int[1];
@@ -168,7 +171,7 @@ module cic_dual_folded
 
                     if (step == 8) begin
                         // Truncate internal 16-bit to 8-bit MSB output
-                        sig_out_left       <= alu_out[15:8];
+                        sig_out_left       <= alu_out;
                         sig_out_left_valid <= 1'b1;
 
                         // Transition to Step 9: Ch Right Comb 0
@@ -196,7 +199,8 @@ module cic_dual_folded
 
                     if (step == 11) begin
                         // Truncate internal 16-bit to 8-bit MSB output
-                        sig_out_right       <= alu_out[15:8];
+                        //sig_out_right       <= alu_out[15:8];
+                        sig_out_right       <= alu_out;
                         sig_out_right_valid <= 1'b1;
 
                         active <= 1'b0; // Carousel complete

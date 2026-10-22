@@ -41,9 +41,9 @@ module pdm_to_pcm_top
     logic pdm_data_left_valid;
     logic [0:0] pdm_data_right;
     logic pdm_data_right_valid;
-    logic [7:0] cic_data_left;
+    logic [15:0] cic_data_left;
     logic cic_data_left_valid;
-    logic [7:0] cic_data_right;
+    logic [15:0] cic_data_right;
     logic cic_data_right_valid;
 
     pdm_to_pcm_reg__out_t hwif_out;
@@ -147,7 +147,9 @@ module pdm_to_pcm_top
 
     assign hwif_in.data_right.value = cic_data_right;
 
-    cic_dual_folded cic_dual_folded_inst (
+    cic_dual_folded #(
+        .DATA_WIDTH (16)
+    ) cic_dual_folded_inst (
         .clk                 (clk),
         .rst_n               (rst_n),
         .sig_in_left         (pdm_data_left),
