@@ -19,7 +19,6 @@ module spi (
 
     logic [7:0] mosi_reg;
     logic [7:0] miso_reg;
-    logic [7:0] miso_buffer_reg;
 
     logic sck_re;
     logic sck_fe;
@@ -40,14 +39,10 @@ module spi (
 
     // MOSI processing
 
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            mosi_reg <= '0;
-        end else begin
-            if (sck_re) begin
-                mosi_reg <= {mosi_reg[6:0], mosi};
-            end
-        end
+    // only read after 8 bits are shifted in, no reset needed
+    always_ff @(posedge clk)
+        if (sck_re)
+            mosi_reg <= {mosi_reg[6:0], mosi};
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
@@ -61,39 +56,27 @@ module spi (
     always_ff @(posedge clk)
         sck_cnt_ovf_reg <= sck_cnt_ovf;
 
+    // stable until the next SCK rising edge
+    assign mosi_data = mosi_reg;
+
     always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            mosi_data <= '0;
+        if (!rst_n)
             mosi_data_valid <= 1'b0;
-        end else begin
-            mosi_data_valid <= 1'b0;
-            if (sck_cnt_ovf_reg) begin
-                mosi_data <= mosi_reg;
-                mosi_data_valid <= 1'b1;
-            end
-        end
+        else
+            mosi_data_valid <= sck_cnt_ovf_reg;
 
     // MISO processing
-
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            miso_buffer_reg <= '0;
-        end else begin
-            if (miso_data_valid) begin
-                miso_buffer_reg <= miso_data;
-            end
-        end
+    // Read data is loaded right after the command byte, so the falling edge
+    // ending that byte (sck_cnt == 0) must not shift.
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
             miso_reg <= '0;
         end else begin
-            if (sck_fe) begin
-                if (sck_cnt == '0) begin
-                    miso_reg <= miso_buffer_reg;
-                end else begin
-                    miso_reg <= {miso_reg[6:0], 1'b0};
-                end
+            if (miso_data_valid) begin
+                miso_reg <= miso_data;
+            end else if (sck_fe && (sck_cnt != '0)) begin
+                miso_reg <= {miso_reg[6:0], 1'b0};
             end
         end
 

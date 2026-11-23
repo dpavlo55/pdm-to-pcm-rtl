@@ -21,18 +21,18 @@ module spi_to_regs_adapter (
     // Toggles on every mosi_data_valid, since transfers are always exactly 2 bytes.
     logic byte_sel;
 
+    assign cpuif_wr_data   = mosi_data;       // stable until the next SCK edge
+    assign miso_data       = cpuif_rd_data;
+    assign miso_data_valid = cpuif_rd_ack;
+
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
             byte_sel        <= 1'b0;
             cpuif_req       <= 1'b0;
             cpuif_req_is_wr <= 1'b0;
             cpuif_addr      <= '0;
-            cpuif_wr_data   <= '0;
-            miso_data       <= '0;
-            miso_data_valid <= 1'b0;
         end else begin
             cpuif_req       <= 1'b0;
-            miso_data_valid <= 1'b0;
 
             if (mosi_data_valid) begin
                 byte_sel <= ~byte_sel;
@@ -45,13 +45,7 @@ module spi_to_regs_adapter (
                 end else begin
                     // Byte 1: data - only issue request for writes
                     cpuif_req     <= cpuif_req_is_wr;
-                    cpuif_wr_data <= mosi_data;
                 end
-            end
-
-            if (cpuif_rd_ack) begin
-                miso_data       <= cpuif_rd_data;
-                miso_data_valid <= 1'b1;
             end
         end
 
