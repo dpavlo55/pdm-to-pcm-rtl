@@ -14,11 +14,9 @@ module pdm_clk_gen #(
     logic carry;
     logic pdm_clk_reg;
 
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n)
-            {carry, acc} <= '0;
-        else if (enable)
-            {carry, acc} <= acc + step;
+    // cleared while disabled (enable resets to 0), so no reset needed
+    always_ff @(posedge clk)
+        {carry, acc} <= enable ? acc + step : '0;
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
