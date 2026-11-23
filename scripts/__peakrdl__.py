@@ -257,6 +257,31 @@ def _buf_data_name(reg: RegisterModel, word_idx: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Read-buffer helpers
+# rbuf_regs is the set of register names with buffer_reads=True. Reading word 0
+# (the low byte, read first for little-endian access) snapshots the hw-driven
+# fields of all higher words, so a multi-word read returns one coherent value.
+# Only the implicit self-trigger (word 0 read) is supported; rbuffer_trigger is
+# rejected at model-build time.
+# ---------------------------------------------------------------------------
+
+def _rbuf_strobe(reg: RegisterModel) -> str:
+    return f"rd_strobe_{reg.name}_w0"
+
+
+def _rbuf_data_name(reg: RegisterModel, word_idx: int) -> str:
+    return f"rbuf_{reg.name}_w{word_idx}_data"
+
+
+def _rbuf_words(reg: RegisterModel, data_width: int) -> List[int]:
+    """Higher words that contain hw-driven fields (those need a snapshot)."""
+    return [
+        w for w in range(1, _num_words(reg, data_width))
+        if any(f.hw_writable and _field_word_idx(f, data_width) == w for f in reg.fields)
+    ]
+
+
+# ---------------------------------------------------------------------------
 # SV generator (with write-buffer support)
 # ---------------------------------------------------------------------------
 
@@ -265,8 +290,9 @@ def _generate_sv(
     addr_width: int,
     registers: List[RegisterModel],
     buf_info: dict,
+    rbuf_regs: frozenset = frozenset(),
 ) -> str:
-    """Return the full text of regs.sv, adding write-buffer logic where needed."""
+    """Return the full text of regs.sv, adding write/read-buffer logic where needed."""
     data_width = registers[0].data_width if registers else 8
     top_struct = f"{addrmap_name}__out_t"
     hw_regs = [r for r in registers if r.has_hw_fields]
@@ -368,6 +394,39 @@ def _generate_sv(
             L.append(f"        end")
             L.append("")
 
+    # --- read buffers ---
+    rbuf_list = [
+        r for r in registers
+        if r.name in rbuf_regs and _rbuf_words(r, data_width)
+    ]
+    if rbuf_list:
+        L += [
+            "    //--------------------------------------------------------------------------",
+            "    // Read buffers - reading word 0 snapshots the higher words",
+            "    //--------------------------------------------------------------------------",
+        ]
+        for reg in rbuf_list:
+            L.append(f"    logic {_rbuf_strobe(reg)};")
+            L.append(
+                f"    assign {_rbuf_strobe(reg)} = s_cpuif_req & ~s_cpuif_req_is_wr"
+                f" & (s_cpuif_addr == {addr_width}'h{reg.address:x});"
+            )
+            words = _rbuf_words(reg, data_width)
+            for w in words:
+                L.append(f"    logic [{data_width - 1}:0] {_rbuf_data_name(reg, w)};")
+            L.append(f"    always_ff @(posedge clk or negedge rst_n)")
+            L.append(f"        if (!rst_n) begin")
+            for w in words:
+                L.append(f"            {_rbuf_data_name(reg, w)} <= {data_width}'h0;")
+            L.append(f"        end else if ({_rbuf_strobe(reg)}) begin")
+            for w in words:
+                for f in reg.fields:
+                    if f.hw_writable and _field_word_idx(f, data_width) == w:
+                        sl = _field_local_slice(f, data_width)
+                        L.append(f"            {_rbuf_data_name(reg, w)}{sl} <= hwif_in.{reg.name}.{f.name};")
+            L.append(f"        end")
+            L.append("")
+
     # --- field storage ---
     L += [
         "    //--------------------------------------------------------------------------",
@@ -430,9 +489,12 @@ def _generate_sv(
                         local_slice = _field_local_slice(f, data_width)
                         L.append(f"                rd_data{local_slice} = {_sig(reg, f)};")
             else:
+                buffered = reg in rbuf_list and w in _rbuf_words(reg, data_width)
                 for f in word_fields:
                     local_slice = _field_local_slice(f, data_width)
-                    if f.hw_writable:
+                    if f.hw_writable and buffered:
+                        L.append(f"                rd_data{local_slice} = {_rbuf_data_name(reg, w)}{local_slice};")
+                    elif f.hw_writable:
                         L.append(f"                rd_data{local_slice} = hwif_in.{reg.name}.{f.name};")
                     else:
                         L.append(f"                rd_data{local_slice} = {f.width}'h{f.reset:x};")
@@ -483,16 +545,19 @@ def _build_model(
     """
     Build the data model from an already-elaborated AddrmapNode.
 
-    Returns (addrmap_name, addr_width, registers, buf_info) where
-    buf_info maps reg_name -> trigger_reg_name for every buffered register.
+    Returns (addrmap_name, addr_width, registers, buf_info, rbuf_regs) where
+    buf_info maps reg_name -> trigger_reg_name for every write-buffered register
+    and rbuf_regs is the set of read-buffered register names.
     """
     addrmap_name: str = top_node.inst_name
     addr_width = max(1, math.ceil(math.log2(top_node.size))) if top_node.size > 1 else 1
 
     registers: List[RegisterModel] = []
     buf_info: dict = {}
+    rbuf_regs: set = set()
     for reg_node in top_node.registers():
         buf_writes = bool(reg_node.get_property('buffer_writes') or False)
+        buf_reads = bool(reg_node.get_property('buffer_reads') or False)
         reg = RegisterModel(
             name=reg_node.inst_name,
             address=reg_node.raw_absolute_address,
@@ -513,8 +578,15 @@ def _build_model(
             trig_ref = reg_node.get_property('wbuffer_trigger')
             if trig_ref is not None:
                 buf_info[reg.name] = trig_ref.inst_name
+        if buf_reads:
+            if reg_node.get_property('rbuffer_trigger') is not None:
+                raise ValueError(
+                    f"{reg.name}: rbuffer_trigger is not supported by regblock-tt "
+                    "(only the implicit word-0 read trigger)"
+                )
+            rbuf_regs.add(reg.name)
 
-    return addrmap_name, addr_width, registers, buf_info
+    return addrmap_name, addr_width, registers, buf_info, frozenset(rbuf_regs)
 
 
 # ---------------------------------------------------------------------------
@@ -530,9 +602,9 @@ class RegblockTtExporter(ExporterSubcommandPlugin):
         options: "argparse.Namespace",
     ) -> None:
         outdir = Path(options.output)
-        addrmap_name, addr_width, registers, buf_info = _build_model(top_node)
+        addrmap_name, addr_width, registers, buf_info, rbuf_regs = _build_model(top_node)
         write_file(outdir / "regs_defs.svh", generate_svh(addrmap_name, addr_width, registers))
-        write_file(outdir / "regs.sv", _generate_sv(addrmap_name, addr_width, registers, buf_info))
+        write_file(outdir / "regs.sv", _generate_sv(addrmap_name, addr_width, registers, buf_info, rbuf_regs))
 
 from peakrdl_uvm.exporter import UVMExporter
 

@@ -112,6 +112,11 @@ def parse_rdl(rdl_path: str) -> tuple[str, int, List[RegisterModel]]:
         (addrmap_name, addr_width, list_of_RegisterModel)
     """
     compiler = systemrdl.RDLCompiler()
+    # Register the PeakRDL-regblock UDPs (buffer_reads, ...) if they sit next
+    # to the RDL source, as the export flow does.
+    udp_path = os.path.join(os.path.dirname(os.path.abspath(rdl_path)), "regblock_udps.rdl")
+    if os.path.exists(udp_path):
+        compiler.compile_file(udp_path)
     compiler.compile_file(rdl_path)
     root = compiler.elaborate()
 
