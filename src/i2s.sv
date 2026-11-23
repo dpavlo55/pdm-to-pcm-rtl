@@ -3,13 +3,11 @@ module i2s
         input  logic clk,
         input  logic rst_n,
 
-        // PCM input — signed 16-bit, one-cycle valid pulse per sample.
-        // Inputs must be held stable between valid pulses (they are the CIC
-        // output registers), so no shadow copy is kept here.
+        // PCM input — signed 16-bit, held stable between valid pulses
         input  logic [15:0] data_left,
         input  logic data_left_valid,
         input  logic [15:0] data_right,
-        input  logic data_right_valid,  // unused (kept for interface symmetry)
+        input  logic data_right_valid,  // unused
 
         // PDM clock inputs
         input logic pdm_clk,
@@ -31,8 +29,8 @@ module i2s
     logic data_ready;
     logic ready;
 
-    logic [15:0] reg_data_left;
-    logic [15:0] reg_data_right;
+    // word being transmitted, MSB first
+    logic [15:0] tx_word;
 
     logic [4:0] bit_cnt;
     logic lrclk_internal;
@@ -83,23 +81,15 @@ module i2s
             end
         end
 
-    // left data register
+    // load the next channel's sample after the current word's LSB, else shift
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
-            reg_data_left <= '0;
+            tx_word <= '0;
         end else if (pdm_clk_fe) begin
-            if (lrclk_internal == LRCLK_RIGHT && bit_index == 4'd0) begin
-                reg_data_left <= data_left;
-            end
-        end
-
-    // right data register
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            reg_data_right <= '0;
-        end else if (pdm_clk_fe) begin
-            if (lrclk_internal == LRCLK_LEFT && bit_index == 4'd0) begin
-                reg_data_right <= data_right;
+            if (bit_index == 4'd0) begin
+                tx_word <= (lrclk_internal == LRCLK_RIGHT) ? data_left : data_right;
+            end else if (ready) begin
+                tx_word <= {tx_word[14:0], 1'b0};
             end
         end
 
@@ -109,11 +99,7 @@ module i2s
             sdata <= 1'b0;
         end else if (ready) begin
             if (pdm_clk_fe) begin
-                if (lrclk_internal == LRCLK_LEFT) begin
-                    sdata <= reg_data_left[bit_index];
-                end else begin
-                    sdata <= reg_data_right[bit_index];
-                end
+                sdata <= tx_word[15];
             end
         end
 
