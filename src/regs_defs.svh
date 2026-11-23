@@ -13,8 +13,8 @@ typedef struct packed {
     pdm_to_pcm_reg__nco_control__out_t nco_control;
 } pdm_to_pcm_reg__out_t;
 
-typedef struct packed { logic [7:0] value; } pdm_to_pcm_reg__data_right__in_t;
-typedef struct packed { logic [7:0] value; } pdm_to_pcm_reg__data_left__in_t;
+typedef struct packed { logic [7:0] high; logic [7:0] low; } pdm_to_pcm_reg__data_right__in_t;
+typedef struct packed { logic [7:0] high; logic [7:0] low; } pdm_to_pcm_reg__data_left__in_t;
 
 typedef struct packed {
     pdm_to_pcm_reg__data_right__in_t data_right;

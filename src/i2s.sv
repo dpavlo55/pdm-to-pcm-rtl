@@ -3,11 +3,13 @@ module i2s
         input  logic clk,
         input  logic rst_n,
 
-        // PCM input — signed 8-bit, one-cycle valid pulse per sample
-        input  logic [7:0] data_left,
+        // PCM input — signed 16-bit, one-cycle valid pulse per sample.
+        // Inputs must be held stable between valid pulses (they are the CIC
+        // output registers), so no shadow copy is kept here.
+        input  logic [15:0] data_left,
         input  logic data_left_valid,
-        input  logic [7:0] data_right,
-        input  logic data_right_valid,
+        input  logic [15:0] data_right,
+        input  logic data_right_valid,  // unused (kept for interface symmetry)
 
         // PDM clock inputs
         input logic pdm_clk,
@@ -29,9 +31,7 @@ module i2s
     logic data_ready;
     logic ready;
 
-    logic [7:0] reg_data_left_shadow;
     logic [15:0] reg_data_left;
-    logic [7:0] reg_data_right_shadow;
     logic [15:0] reg_data_right;
 
     logic [4:0] bit_cnt;
@@ -51,22 +51,6 @@ module i2s
             ready <= 1'b0;
         end else if (data_ready && pdm_clk_fe) begin
             ready <= 1'b1;
-        end
-
-    // left shadow register
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            reg_data_left_shadow <= '0;
-        end else if (data_left_valid) begin
-            reg_data_left_shadow <= data_left;
-        end
-
-    // right shadow register
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            reg_data_right_shadow <= '0;
-        end else if (data_right_valid) begin
-            reg_data_right_shadow <= data_right;
         end
 
     // bit counter
@@ -105,7 +89,7 @@ module i2s
             reg_data_left <= '0;
         end else if (pdm_clk_fe) begin
             if (lrclk_internal == LRCLK_RIGHT && bit_index == 4'd0) begin
-                reg_data_left <= {reg_data_left_shadow, 8'b0};
+                reg_data_left <= data_left;
             end
         end
 
@@ -115,7 +99,7 @@ module i2s
             reg_data_right <= '0;
         end else if (pdm_clk_fe) begin
             if (lrclk_internal == LRCLK_LEFT && bit_index == 4'd0) begin
-                reg_data_right <= {reg_data_right_shadow, 8'b0};
+                reg_data_right <= data_right;
             end
         end
 

@@ -41,9 +41,9 @@ module pdm_to_pcm_top
     logic pdm_data_left_valid;
     logic [0:0] pdm_data_right;
     logic pdm_data_right_valid;
-    logic [7:0] cic_data_left;
+    logic [15:0] cic_data_left;
     logic cic_data_left_valid;
-    logic [7:0] cic_data_right;
+    logic [15:0] cic_data_right;
     logic cic_data_right_valid;
 
     pdm_to_pcm_reg__out_t hwif_out;
@@ -125,27 +125,27 @@ module pdm_to_pcm_top
         .pdm_data_right_valid (pdm_data_right_valid)
     );
 
-    cic cic_left_inst (
-        .clk           (clk),
-        .rst_n         (rst_n),
-        .sig_in        (pdm_data_left),
-        .sig_in_valid  (pdm_data_left_valid),
-        .sig_out       (cic_data_left),
-        .sig_out_valid (cic_data_left_valid)
+    // Stereo 16-bit CIC decimator (single shared adder, both channels).
+    // A pair is processed after the right sample (falling PDM edge); the left
+    // sample captured on the preceding rising edge is held by pdm_sampler.
+    cic_dual_folded cic_inst (
+        .clk                 (clk),
+        .rst_n               (rst_n),
+        .sig_in_left         (pdm_data_left),
+        .sig_in_right        (pdm_data_right),
+        .sig_in_valid        (pdm_data_right_valid),
+        .sig_out_left        (cic_data_left),
+        .sig_out_right       (cic_data_right),
+        .sig_out_left_valid  (cic_data_left_valid),
+        .sig_out_right_valid (cic_data_right_valid)
     );
 
-    assign hwif_in.data_left.value = cic_data_left;
-
-    cic cic_right_inst (
-        .clk           (clk),
-        .rst_n         (rst_n),
-        .sig_in        (pdm_data_right),
-        .sig_in_valid  (pdm_data_right_valid),
-        .sig_out       (cic_data_right),
-        .sig_out_valid (cic_data_right_valid)
-    );
-
-    assign hwif_in.data_right.value = cic_data_right;
+    // Register readback: full 16-bit PCM samples (high byte is snapshotted by
+    // the register block when the low byte is read)
+    assign hwif_in.data_left.high  = cic_data_left[15:8];
+    assign hwif_in.data_left.low   = cic_data_left[7:0];
+    assign hwif_in.data_right.high = cic_data_right[15:8];
+    assign hwif_in.data_right.low  = cic_data_right[7:0];
 
     i2s i2s_inst (
         .clk              (clk),

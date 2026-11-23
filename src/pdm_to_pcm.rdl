@@ -56,33 +56,61 @@ addrmap pdm_to_pcm_reg {
 
     reg {
         name = "data_right";
-        desc = "PCM output for the right audio channel. Sampled on the falling
-            edge of the PDM clock. Updated by hardware after each CIC decimation
-            cycle.";
+        desc = "16-bit signed PCM output for the right audio channel (sampled on
+            the falling edge of the PDM clock). Updated by hardware after each CIC
+            decimation cycle.
+
+            Read the low byte first: reading the low byte snapshots the high
+            byte, so the following high-byte read returns the matching half of
+            the same sample even if the CIC updates in between.";
+
+        regwidth = 16;
+        buffer_reads = true;
 
         field {
-            name = "value";
-            desc = "8-bit PCM sample for the right channel.";
+            name = "pcm[15:8]";
+            desc = "Upper byte of the 16-bit PCM sample (buffered on low-byte read).";
             hw = w;
             sw = r;
-        } value[7:0] = 0x0;
+        } high[15:8] = 0x0;
+
+        field {
+            name = "pcm[7:0]";
+            desc = "Lower byte of the 16-bit PCM sample.";
+            hw = w;
+            sw = r;
+        } low[7:0] = 0x0;
 
     } data_right @ 0x3;
 
     reg {
         name = "data_left";
-        desc = "PCM output for the left audio channel.
-            Sampled on the rising edge of the PDM clock. Updated by hardware
-            after each CIC decimation cycle.";
+        desc = "16-bit signed PCM output for the left audio channel (sampled on
+            the rising edge of the PDM clock). Updated by hardware after each CIC
+            decimation cycle.
+
+            Read the low byte first: reading the low byte snapshots the high
+            byte, so the following high-byte read returns the matching half of
+            the same sample even if the CIC updates in between.";
+
+        regwidth = 16;
+        buffer_reads = true;
 
         field {
-            name = "value";
-            desc = "8-bit PCM sample for the left channel.";
+            name = "pcm[15:8]";
+            desc = "Upper byte of the 16-bit PCM sample (buffered on low-byte read).";
             hw = w;
             sw = r;
-        } value[7:0] = 0x0;
+        } high[15:8] = 0x0;
 
-    } data_left @ 0x4;
+        field {
+            name = "pcm[7:0]";
+            desc = "Lower byte of the 16-bit PCM sample.";
+            hw = w;
+            sw = r;
+        } low[7:0] = 0x0;
+
+    } data_left @ 0x5;
 
     reg {
         name = "id";
@@ -95,6 +123,6 @@ addrmap pdm_to_pcm_reg {
             hw = na;
         } value [7:0] = 8'hDA;
 
-    } id @ 0x5;
+    } id @ 0x7;
 
 };

@@ -29,6 +29,29 @@ module regs (
     assign wr_strobe_nco_control_w1 = s_cpuif_req & s_cpuif_req_is_wr & (s_cpuif_addr == 3'h2);
 
     //--------------------------------------------------------------------------
+    // Read buffers - reading word 0 snapshots the higher words
+    //--------------------------------------------------------------------------
+    logic rd_strobe_data_right_w0;
+    assign rd_strobe_data_right_w0 = s_cpuif_req & ~s_cpuif_req_is_wr & (s_cpuif_addr == 3'h3);
+    logic [7:0] rbuf_data_right_w1_data;
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            rbuf_data_right_w1_data <= 8'h0;
+        end else if (rd_strobe_data_right_w0) begin
+            rbuf_data_right_w1_data[7:0] <= hwif_in.data_right.high;
+        end
+
+    logic rd_strobe_data_left_w0;
+    assign rd_strobe_data_left_w0 = s_cpuif_req & ~s_cpuif_req_is_wr & (s_cpuif_addr == 3'h5);
+    logic [7:0] rbuf_data_left_w1_data;
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            rbuf_data_left_w1_data <= 8'h0;
+        end else if (rd_strobe_data_left_w0) begin
+            rbuf_data_left_w1_data[7:0] <= hwif_in.data_left.high;
+        end
+
+    //--------------------------------------------------------------------------
     // Field storage
     //--------------------------------------------------------------------------
     logic control_enable;
@@ -70,12 +93,18 @@ module regs (
                 rd_data[7:0] = nco_control_high;
             end
             3'h3: begin
-                rd_data[7:0] = hwif_in.data_right.value;
+                rd_data[7:0] = hwif_in.data_right.low;
             end
             3'h4: begin
-                rd_data[7:0] = hwif_in.data_left.value;
+                rd_data[7:0] = rbuf_data_right_w1_data[7:0];
             end
             3'h5: begin
+                rd_data[7:0] = hwif_in.data_left.low;
+            end
+            3'h6: begin
+                rd_data[7:0] = rbuf_data_left_w1_data[7:0];
+            end
+            3'h7: begin
                 rd_data[7:0] = 8'hda;
             end
             default: rd_data = {8{1'b0}};

@@ -39,7 +39,7 @@ class TestParseRdl:
 
     def test_register_addresses(self):
         addrs = [r.address for r in self.registers]
-        assert addrs == [0x0, 0x2, 0x4, 0x5, 0x6]
+        assert addrs == [0x0, 0x1, 0x3, 0x5, 0x7]
 
     def test_control_fields(self):
         control = self.registers[0]
@@ -62,8 +62,11 @@ class TestParseRdl:
         for f in control.fields:
             assert f.sw == AccessType.rw
 
+    def _reg(self, name):
+        return next(r for r in self.registers if r.name == name)
+
     def test_id_field_reset(self):
-        id_reg = self.registers[4]
+        id_reg = self._reg("id")
         assert id_reg.fields[0].reset == 0xDA
 
     def test_hw_accessible_fields(self):
@@ -80,24 +83,23 @@ class TestParseRdl:
 
     def test_hw_writable_fields(self):
         from systemrdl.rdltypes import AccessType
-        data_right = self.registers[2]
-        assert len(data_right.fields) == 1
-        assert data_right.fields[0].hw_writable
-        data_left = self.registers[3]
-        assert len(data_left.fields) == 1
-        assert data_left.fields[0].hw_writable
+        for name in ("data_right", "data_left"):
+            reg = self._reg(name)
+            assert reg.data_width == 16
+            assert {f.name for f in reg.fields} == {"high", "low"}
+            assert all(f.hw_writable for f in reg.fields)
 
     def test_hw_in_fields_on_model(self):
-        data_right = self.registers[2]
+        data_right = self._reg("data_right")
         assert data_right.has_hw_in_fields
-        assert [f.name for f in data_right.hw_in_fields] == ["value"]
+        assert [f.name for f in data_right.hw_in_fields] == ["high", "low"]
 
     def test_control_has_no_hw_in_fields(self):
         control = self.registers[0]
         assert not control.has_hw_in_fields
 
     def test_id_has_no_hw_in_fields(self):
-        id_reg = self.registers[4]
+        id_reg = self._reg("id")
         assert not id_reg.has_hw_in_fields
 
 
@@ -271,8 +273,8 @@ class TestGenerateSv:
         assert "input  pdm_to_pcm_reg__in_t hwif_in" in self.sv
 
     def test_read_mux_routes_hwif_in(self):
-        assert "hwif_in.data_right.value" in self.sv
-        assert "hwif_in.data_left.value" in self.sv
+        assert "hwif_in.data_right.low" in self.sv
+        assert "hwif_in.data_left.low" in self.sv
 
     def test_id_field_is_constant_not_hwif_in(self):
         # id has hw=na — must be a constant, not routed through hwif_in
