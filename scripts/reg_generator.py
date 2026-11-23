@@ -165,9 +165,12 @@ def generate_svh(addrmap_name: str, addr_width: int, registers: List[RegisterMod
         f"`ifndef {guard}",
         f"`define {guard}",
         "",
+        "// informational: not every design uses these",
+        "/* verilator lint_off UNUSEDPARAM */",
         f"localparam REGS_DATA_WIDTH    = {data_width};",
         f"localparam REGS_MIN_ADDR_WIDTH = {addr_width};",
         f"localparam REGS_SIZE           = 'h{num_regs:x};",
+        "/* verilator lint_on UNUSEDPARAM */",
         "",
     ]
 

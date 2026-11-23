@@ -49,4 +49,7 @@ module spi_to_regs_adapter (
             end
         end
 
+    // writes complete in one cycle; the command flow does not wait for the ack
+    wire _unused = cpuif_wr_ack;
+
 endmodule

@@ -7,7 +7,7 @@ module i2s
         input  logic [15:0] data_left,
         input  logic data_left_valid,
         input  logic [15:0] data_right,
-        input  logic data_right_valid,  // unused
+        input  logic data_right_valid,  // unused: both channels update together
 
         // PDM clock inputs
         input logic pdm_clk,
@@ -102,5 +102,7 @@ module i2s
                 sdata <= tx_word[15];
             end
         end
+
+    wire _unused = data_right_valid;
 
 endmodule : i2s

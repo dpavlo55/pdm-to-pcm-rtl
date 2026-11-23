@@ -13,7 +13,7 @@ module tt_um_top
     logic spi_sck, sck_meta, sck;
     logic spi_mosi, mosi_meta, mosi;
     logic spi_cs_n, cs_n_meta, cs_n;
-    logic spi_miso, miso;
+    logic miso;
     logic pdm_clk, pdm_data;  // pdm_clk is driven by pdm_to_pcm_top (output)
     logic i2s_bclk, i2s_lrclk, i2s_sdata;
 
@@ -32,7 +32,8 @@ module tt_um_top
     assign uo_out[3] = i2s_sdata;  // I2S serial data
     assign uo_out[7:4] = 4'b0;
 
-    assign spi_miso = miso;
+    // unused Tiny Tapeout pins
+    wire _unused = &{ena, uio_in, ui_in[7:4], 1'b0};
 
     always_ff @(posedge clk) begin
         sck_meta <= spi_sck;

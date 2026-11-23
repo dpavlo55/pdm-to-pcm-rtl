@@ -164,4 +164,7 @@ module pdm_to_pcm_top
         .sdata            (i2s_sdata)
     );
 
+    // the CIC takes one strobe per left/right pair: the right one, which comes last
+    wire _unused = pdm_data_left_valid;
+
 endmodule : pdm_to_pcm_top

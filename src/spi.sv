@@ -30,12 +30,13 @@ module spi (
 
     edge_detector sck_edge (
         .clk     (clk),
-        .rst_n   (rst_n),
         .sig     (sck),
         .edge_re (sck_re),
-        .edge_fe (sck_fe),
-        .edge_rf ()
+        .edge_fe (sck_fe)
     );
+
+    // Framing counts SCK edges; cs_n only enables the MISO driver (tt_um_top).
+    wire _unused = cs_n;
 
     // MOSI processing
 

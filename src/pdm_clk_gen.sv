@@ -29,11 +29,9 @@ module pdm_clk_gen #(
 
     edge_detector pdm_clk_edge_inst (
         .clk     (clk),
-        .rst_n   (rst_n),
         .sig     (pdm_clk_reg),
         .edge_re (pdm_clk_re),
-        .edge_fe (pdm_clk_fe),
-        .edge_rf ()
+        .edge_fe (pdm_clk_fe)
     );
 
 endmodule : pdm_clk_gen

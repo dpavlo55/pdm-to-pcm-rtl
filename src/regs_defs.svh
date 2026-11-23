@@ -1,9 +1,12 @@
 `ifndef PDM_TO_PCM_REG_DEFS_SVH
 `define PDM_TO_PCM_REG_DEFS_SVH
 
+// informational: not every design uses these
+/* verilator lint_off UNUSEDPARAM */
 localparam REGS_DATA_WIDTH    = 8;
 localparam REGS_MIN_ADDR_WIDTH = 3;
 localparam REGS_SIZE           = 'h5;
+/* verilator lint_on UNUSEDPARAM */
 
 typedef struct packed { logic enable; } pdm_to_pcm_reg__control__out_t;
 typedef struct packed { logic [7:0] high; logic [7:0] low; } pdm_to_pcm_reg__nco_control__out_t;
