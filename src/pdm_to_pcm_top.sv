@@ -101,7 +101,9 @@ module pdm_to_pcm_top
         .hwif_in           (hwif_in)
     );
 
-    assign step = {hwif_out.nco_control.high, hwif_out.nco_control.low};
+    // whole struct {high, low}: Icarus 12 drops the high byte when nested struct
+    // members are concatenated
+    assign step = hwif_out.nco_control;
 
     pdm_clk_gen pdm_clk_gen_inst (
         .clk        (clk),
