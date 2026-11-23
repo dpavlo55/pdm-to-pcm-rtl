@@ -125,9 +125,7 @@ module pdm_to_pcm_top
         .pdm_data_right_valid (pdm_data_right_valid)
     );
 
-    // Stereo 16-bit CIC decimator (single shared adder, both channels).
-    // A pair is processed after the right sample (falling PDM edge); the left
-    // sample captured on the preceding rising edge is held by pdm_sampler.
+    // Stereo CIC, one PDM pair per right-channel sample
     cic_dual_folded cic_inst (
         .clk                 (clk),
         .rst_n               (rst_n),
@@ -140,8 +138,7 @@ module pdm_to_pcm_top
         .sig_out_right_valid (cic_data_right_valid)
     );
 
-    // Register readback: full 16-bit PCM samples (high byte is snapshotted by
-    // the register block when the low byte is read)
+    // PCM readback registers
     assign hwif_in.data_left.high  = cic_data_left[15:8];
     assign hwif_in.data_left.low   = cic_data_left[7:0];
     assign hwif_in.data_right.high = cic_data_right[15:8];

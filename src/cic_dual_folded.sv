@@ -1,41 +1,21 @@
 // =============================================================================
-// cic_dual_folded — area-optimised stereo CIC decimator, 16-bit output
+// cic_dual_folded — stereo CIC decimator, N=3, R=32, M=1, 16-bit PCM output
 // =============================================================================
-//   N = 3 (stages), R = 32 (decimation), M = 1 (differential delay)
-//   Bin = 1 (PDM), internal width = 16 bits, Bout = 16 bits (signed PCM)
+// State: 3 integrators + 3 comb delays per channel, held in two 6-word rings
+// that rotate by one word every clock. `slot` tracks which word is at the head:
 //
-// Architecture
-// ------------
-// Both channels share a single 16-bit adder. The filter state (3 integrators +
-// 3 comb delays per channel = 12 words) lives in two 6-word "carousel" shift
-// registers that rotate past the adder, so no read multiplexer tree is needed:
+//   slot             :   0     1     2     3     4     5
+//   integ_ring[0]    :  L.i0  L.i1  L.i2  R.i0  R.i1  R.i2
+//   comb_ring[0]     :  R.d0  R.d1  R.d2  L.d0  L.d1  L.d2
 //
-//   sr_int  : [L.i0 L.i1 L.i2 R.i0 R.i1 R.i2]   (rotates on integrator steps)
-//   sr_comb : [L.d0 L.d1 L.d2 R.d0 R.d1 R.d2]   (rotates on comb steps)
+// A PDM pair is integrated during the rotation after it arrives. On decimation
+// pairs the left combs run in slots 3-5 of that rotation and the right combs in
+// slots 0-2 of the next one. PDM pairs must be >= 7 clk apart.
 //
-// The only extra datapath register is `acc`, which carries the result of the
-// previous step into the next one (integrator cascade / comb cascade).
-//
-// One PDM sample pair (left captured on the rising PDM edge, right on the
-// falling edge) is processed when sig_in_valid is seen:
-//
-//   non-decimation pair :  L.I0 L.I1 L.I2 R.I0 R.I1 R.I2                (6 clk)
-//   decimation pair     :  L.I0 L.I1 L.I2 L.C0 L.C1 L.C2
-//                          R.I0 R.I1 R.I2 R.C0 R.C1 R.C2               (12 clk)
-//
-// so sig_in_valid must be at least 13 clk cycles apart (fclk / fPDM >= 13,
-// i.e. fPDM <= 3.8 MHz at 50 MHz).
-//
-// Arithmetic (bit-exact with the reference model cic16_model.svh)
-// ----------------------------------------------------------------
-// The PDM input is mapped unipolar (1 -> 1, 0 -> 0). The ideal CIC output is
-// then S = sum(h[k] * x[n-k]) with 0 <= S <= R^N = 32768, which fits in 16
-// unsigned bits, so all integrators / combs may wrap modulo 2^16 (Hogenauer)
-// and the final comb still yields S exactly.
-//   integrators : i0 += x ; i1 += i0' ; i2 += i1'        (updated values cascade)
-//   combs       : c0 = i2 - d0 ; c1 = c0 - d1 ; c2 = c1 - d2 ; d_k <= input_k
-// S is mapped to full-scale signed 16-bit PCM:
-//   pcm = 2*S - 32768, saturated to +32767 (only for S == 32768).
+// Arithmetic (bit-exact with cic16_model.svh): PDM bits are 0/1, so the ideal
+// output S is in [0, 32768]. State wraps modulo 2^15; S = 0 and S = 32768 both
+// give 0 and are told apart by the newest PDM bit (1 only for S = 32768).
+// Output: pcm = 2*S - 32768, saturated to +32767.
 // =============================================================================
 
 module cic_dual_folded
@@ -51,123 +31,154 @@ module cic_dual_folded
         output logic        sig_out_right_valid
     );
 
-    localparam int W = 16;
-    localparam logic [4:0] DEC_MAX = 5'd31;   // R - 1
+    localparam int STATE_W = 15;
+    localparam logic [4:0] DECIM_MAX = 5'd31;   // R - 1
 
     //--------------------------------------------------------------------------
-    // State
+    // Ring position and sequencing
     //--------------------------------------------------------------------------
-    logic [W-1:0] sr_int  [0:5];
-    logic [W-1:0] sr_comb [0:5];
-    logic [W-1:0] acc;
+    logic [2:0] slot;                   // word at the ring heads (0..5)
+    logic       slot_wrap;              // last slot of a rotation
 
-    logic         x_left, x_right;     // captured PDM bits of the current pair
-    logic         busy;
-    logic         ch;                  // 0 = left, 1 = right
-    logic         comb;                // 0 = integrator steps, 1 = comb steps
-    logic [1:0]   stage;               // 0..2
-    logic         decim;               // current pair is a decimation pair
-    logic [4:0]   dec_cnt;
+    logic       pending_valid;          // a PDM pair waits for the next rotation
+    logic       pending_decim;          // the waiting pair is a decimation pair
+    logic       pending_pdm_left;       // PDM bits of the waiting pair
+    logic       pending_pdm_right;
+    logic [4:0] decim_cnt;
 
-    //--------------------------------------------------------------------------
-    // ALU (single shared 16-bit adder)
-    //   integrator step : sr_int[0] + opb
-    //   comb step       : opb - sr_comb[0] = opb + ~sr_comb[0] + 1
-    //--------------------------------------------------------------------------
-    logic         first;
-    logic [W-1:0] opb;
-    logic [W-1:0] opa;
-    logic [W-1:0] alu_out;
+    logic       integ_active;           // this rotation integrates a pair
+    logic       comb_left_active;       // left combs run in slots 3-5
+    logic       comb_right_active;      // right combs run in slots 0-2
+    logic       active_pdm_left;        // PDM bits of the pair being integrated
+    logic       active_pdm_right;
+    logic       decim_pdm_right;        // right PDM bit of the decimation pair
+    logic       clear_rings;            // first rotation after reset
 
-    assign first   = !comb && (stage == 2'd0);
-    assign opb     = first ? {{(W-1){1'b0}}, (ch ? x_right : x_left)} : acc;
-    assign opa     = comb ? ~sr_comb[0] : sr_int[0];
-    assign alu_out = opb + opa + {{(W-1){1'b0}}, comb};
-
-    // Full-scale signed mapping with saturation: pcm = 2*S - 32768
-    // (S[15] set only for S == 32768 -> saturate to +32767)
-    logic [W-1:0] pcm;
-    assign pcm = alu_out[W-1] ? {1'b0, {(W-1){1'b1}}}
-                              : {~alu_out[W-2], alu_out[W-3:0], 1'b0};
-
-    //--------------------------------------------------------------------------
-    // Carousels (no reset-value dependency on control; async reset to zero)
-    //--------------------------------------------------------------------------
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            for (int i = 0; i < 6; i++) sr_int[i] <= '0;
-        end else if (busy && !comb) begin
-            for (int i = 0; i < 5; i++) sr_int[i] <= sr_int[i+1];
-            sr_int[5] <= alu_out;
-        end
-
-    always_ff @(posedge clk or negedge rst_n)
-        if (!rst_n) begin
-            for (int i = 0; i < 6; i++) sr_comb[i] <= '0;
-        end else if (busy && comb) begin
-            for (int i = 0; i < 5; i++) sr_comb[i] <= sr_comb[i+1];
-            sr_comb[5] <= acc;          // delay <= comb stage input
-        end
+    assign slot_wrap = (slot == 3'd5);
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
-            acc <= '0;
-        else if (busy)
-            acc <= alu_out;
+            slot <= 3'd0;
+        else
+            slot <= slot_wrap ? 3'd0 : slot + 3'd1;
 
-    //--------------------------------------------------------------------------
-    // Sequencer
-    //--------------------------------------------------------------------------
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n) begin
-            busy    <= 1'b0;
-            ch      <= 1'b0;
-            comb    <= 1'b0;
-            stage   <= 2'd0;
-            decim   <= 1'b0;
-            dec_cnt <= '0;
-            x_left  <= 1'b0;
-            x_right <= 1'b0;
-        end else if (!busy) begin
-            if (sig_in_valid) begin
-                busy    <= 1'b1;
-                x_left  <= sig_in_left;
-                x_right <= sig_in_right;
-                decim   <= (dec_cnt == DEC_MAX);
-                dec_cnt <= (dec_cnt == DEC_MAX) ? 5'd0 : dec_cnt + 5'd1;
-            end
-        end else if (stage != 2'd2) begin
-            stage <= stage + 2'd1;
+            pending_valid <= 1'b0;
+            pending_decim <= 1'b0;
+            decim_cnt     <= '0;
         end else begin
-            stage <= 2'd0;
-            if (!comb && decim) begin
-                comb <= 1'b1;
-            end else if (!ch) begin
-                ch   <= 1'b1;
-                comb <= 1'b0;
-            end else begin
-                busy <= 1'b0;
-                ch   <= 1'b0;
-                comb <= 1'b0;
+            if (slot_wrap)
+                pending_valid <= 1'b0;
+            if (sig_in_valid) begin
+                pending_valid <= 1'b1;
+                pending_decim <= (decim_cnt == DECIM_MAX);
+                decim_cnt     <= (decim_cnt == DECIM_MAX) ? 5'd0 : decim_cnt + 5'd1;
             end
         end
 
+    always_ff @(posedge clk or negedge rst_n)
+        if (!rst_n) begin
+            integ_active      <= 1'b0;
+            comb_left_active  <= 1'b0;
+            comb_right_active <= 1'b0;
+            clear_rings       <= 1'b1;
+        end else if (slot_wrap) begin
+            integ_active      <= pending_valid;
+            comb_left_active  <= pending_valid && pending_decim;
+            comb_right_active <= comb_left_active;
+            clear_rings       <= 1'b0;
+        end
+
+    // written before use, no reset needed
+    always_ff @(posedge clk) begin
+        if (sig_in_valid) begin
+            pending_pdm_left  <= sig_in_left;
+            pending_pdm_right <= sig_in_right;
+        end
+        if (slot_wrap) begin
+            active_pdm_left  <= pending_pdm_left;
+            active_pdm_right <= pending_pdm_right;
+            decim_pdm_right  <= active_pdm_right;
+        end
+    end
+
     //--------------------------------------------------------------------------
-    // Outputs — updated after the last comb stage of each channel
+    // Integrators: head <= head + (first stage ? PDM bit : previous stage)
+    // The previous stage's new value is the word just written to the tail.
+    // The rings have no reset; zeros are shifted in during clear_rings.
     //--------------------------------------------------------------------------
-    logic last_comb;
-    assign last_comb = busy && comb && (stage == 2'd2);
+    logic [STATE_W-1:0] integ_ring [0:5];
+    logic               integ_first_stage;
+    logic               integ_pdm_bit;
+    logic [STATE_W-1:0] integ_addend;
+    logic [STATE_W-1:0] integ_sum;
+
+    assign integ_first_stage = (slot == 3'd0) || (slot == 3'd3);
+    assign integ_pdm_bit     = slot[0] ? active_pdm_right : active_pdm_left;  // slot 3 / slot 0
+    assign integ_addend      = integ_first_stage ? {{(STATE_W-1){1'b0}}, integ_pdm_bit}
+                                                 : integ_ring[5];
+    assign integ_sum         = integ_ring[0] + integ_addend;
+
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < 5; i++) integ_ring[i] <= integ_ring[i+1];
+        integ_ring[5] <= clear_rings ? '0 : (integ_active ? integ_sum : integ_ring[0]);
+    end
+
+    //--------------------------------------------------------------------------
+    // Combs: output = input - delay, delay <= input
+    // Stage 0 input is the new i2 (tail of integ_ring), later stages take the
+    // previous comb output.
+    //--------------------------------------------------------------------------
+    logic [STATE_W-1:0] comb_ring [0:5];
+    logic               comb_active;
+    logic               comb_first_stage;
+    logic               comb_last_stage;
+    logic [STATE_W-1:0] comb_input;
+    logic [STATE_W-1:0] comb_output;
+    logic [STATE_W-1:0] comb_prev;
+
+    assign comb_active      = (slot >= 3'd3) ? comb_left_active : comb_right_active;
+    assign comb_first_stage = (slot == 3'd0) || (slot == 3'd3);
+    assign comb_last_stage  = (slot == 3'd2) || (slot == 3'd5);
+    assign comb_input       = comb_first_stage ? integ_ring[5] : comb_prev;
+    assign comb_output      = comb_input - comb_ring[0];
+
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < 5; i++) comb_ring[i] <= comb_ring[i+1];
+        comb_ring[5] <= clear_rings ? '0 : (comb_active ? comb_input : comb_ring[0]);
+    end
+
+    // only read right after it is written, no reset needed
+    always_ff @(posedge clk)
+        comb_prev <= comb_output;
+
+    //--------------------------------------------------------------------------
+    // Outputs
+    //--------------------------------------------------------------------------
+    logic [15:0] pcm;
+    logic        newest_pdm_bit;
+    logic        saturate;
+    logic        left_done;
+    logic        right_done;
+
+    assign newest_pdm_bit = slot[2] ? active_pdm_left : decim_pdm_right;  // slot 5 / slot 2
+    assign saturate       = (comb_output == '0) && newest_pdm_bit;        // S == 32768
+    assign pcm            = saturate ? 16'h7FFF
+                                     : {~comb_output[STATE_W-1], comb_output[STATE_W-2:0], 1'b0};
+    assign left_done      = comb_active && comb_last_stage && slot[2];
+    assign right_done     = comb_active && comb_last_stage && !slot[2];
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
             sig_out_left <= '0;
-        else if (last_comb && !ch)
+        else if (left_done)
             sig_out_left <= pcm;
 
     always_ff @(posedge clk or negedge rst_n)
         if (!rst_n)
             sig_out_right <= '0;
-        else if (last_comb && ch)
+        else if (right_done)
             sig_out_right <= pcm;
 
     always_ff @(posedge clk or negedge rst_n)
@@ -175,8 +186,8 @@ module cic_dual_folded
             sig_out_left_valid  <= 1'b0;
             sig_out_right_valid <= 1'b0;
         end else begin
-            sig_out_left_valid  <= last_comb && !ch;
-            sig_out_right_valid <= last_comb && ch;
+            sig_out_left_valid  <= left_done;
+            sig_out_right_valid <= right_done;
         end
 
 endmodule : cic_dual_folded
